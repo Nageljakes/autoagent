@@ -8,6 +8,11 @@ package-lock.json
 *.env
 !*.env.example
 
+# Sensitive contacts & overrides
+*vip_contacts*.json
+!*vip_contacts*.example.json
+config/vip_contacts.json
+
 # WhatsApp Baileys Auth & Sessions (NEVER COMMIT)
 auth_info_baileys/
 auth_info_monitor/

@@ -48,15 +48,15 @@ Always check the local cache or primary branch sites first for any used vehicle 
 
 ### 2. Extended Regional Dealerships (Search Only When Instructed)
 When {SALESPERSON_NAME} explicitly requests expanding the search across all regional pre-owned stock or neighboring branches, check:
-- **BB Sinoville**: https://branch1.example.com/used/
-- **BB GWM Montana**: https://branch2.example.com/used/
-- **BB Hatfield Renault**: https://branch3.example.com/used/
-- **BB Hatfield Suzuki**: https://branch4.example.com/used/
+- **Regional Branch 1**: https://branch1.example.com/used/
+- **Regional Branch 2**: https://branch2.example.com/used/
+- **Regional Branch 3**: https://branch3.example.com/used/
+- **Regional Branch 4**: https://branch4.example.com/used/
 - **{DEALERSHIP_NAME_SECONDARY}**: https://branch.example.com/used
-- **BB Menlyn**: https://branch5.example.com/used/
-- **BB Menlyn Mahindra**: https://branch6.example.com/used/
-- **BB BYD Centurion (AutoTrader)**: https://autotrader.example.com/dealer/branch/12345
-- **BB Silverton**: https://branch8.example.com/used/
+- **Regional Branch 5**: https://branch5.example.com/used/
+- **Regional Branch 6**: https://branch6.example.com/used/
+- **Regional Branch 7**: https://autotrader.example.com/dealer/branch/12345
+- **Regional Branch 8**: https://branch8.example.com/used/
 
 ## Image Scraping & DOM Cleansing Invariant (CRITICAL)
 When fetching or downloading listing photos from dealership web pages:

@@ -14,9 +14,9 @@ async function send() {
     sock.ev.on('connection.update', async (update) => {
         const { connection } = update;
         if (connection === 'open') {
-            const jid = '27820000000@s.whatsapp.net';
-            const msg = "Good day, thank you for reaching out to us. We have received your message and will follow up shortly.";
-            console.log("Sending...");
+            const jid = process.env.TARGET_JID || process.argv[2] || '27820000000@s.whatsapp.net';
+            const msg = process.env.OUTREACH_MESSAGE || process.argv[3] || "Good day, thank you for reaching out to us. We have received your message and will follow up shortly.";
+            console.log(`Sending to ${jid}...`);
             await sock.sendMessage(jid, { text: msg });
             console.log("Sent successfully.");
             process.exit(0);

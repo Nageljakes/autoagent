@@ -297,7 +297,7 @@ export function getProspectHistory(phoneOrQuery, limit = 50, offset = 0) {
       if (row.jid) matchingJids.add(row.jid);
       if (row.phone_number) matchingPhones.add(row.phone_number);
 
-      // If matched row has a linked phone in tags (e.g. lid_link:27820000003)
+      // If matched row has a linked phone in tags (e.g. lid_link:27821234567)
       if (row.tags && row.tags.includes('lid_link:')) {
         const m = row.tags.match(/lid_link:(\d+)/);
         if (m) {

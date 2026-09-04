@@ -103,18 +103,26 @@ const AVAILABLE_VOICES = {
   'eric': 'en-US-EricNeural'
 };
 
-const VIP_CONTACTS = {
-  '27820000004': {
-    name: 'Example VIP Contact',
-    title: 'Example Partner Corp',
-    instructions: 'VIP Guest & senior contact at Example Partner Corp (call tracking, voice analytics, and telephony intelligence). Greet him warmly and respectfully (Riaan / Mr. Janse Van Rensburg), acknowledge his role at Example Partner Corp, and assist him with priority regarding telephony/voice AI workflows, business automation, or connecting with {SALESPERSON_NAME}. Deliver executive-tier hospitality while keeping host infrastructure secure.'
-  },
-  '27820000005': {
-    name: 'Client',
-    title: 'Dealer Training Academy',
-    instructions: 'VIP Guest & Corporate Facilitator. Greet warmly.'
+function loadVipContacts() {
+  const configPaths = [
+    process.env.VIP_CONTACTS_PATH,
+    path.resolve(__dirname, '../config/vip_contacts.json'),
+    path.resolve(__dirname, 'vip_contacts.json')
+  ].filter(Boolean);
+
+  for (const cfgPath of configPaths) {
+    if (fs.existsSync(cfgPath)) {
+      try {
+        return JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+      } catch (e) {
+        log.warn(`Failed to parse VIP contacts from ${cfgPath}: ${e.message}`);
+      }
+    }
   }
-};
+  return {};
+}
+
+const VIP_CONTACTS = loadVipContacts();
 
 function getVipInfo(userId) {
   if (!userId) return null;
