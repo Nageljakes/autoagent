@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoAgent | Autonomous Dealership OS & WhatsApp Sales Companion</title>
+  <meta name="description" content="An autonomous, private AI sales co-pilot and CRM automation harness built for automotive dealerships. Sales Companion First architecture with zero clerical friction.">
+  
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="AutoAgent Dealership OS">
+  <meta property="og:title" content="AutoAgent | Autonomous Dealership OS & WhatsApp Sales Companion">
+  <meta property="og:description" content="Sales Companion First architecture. Automates dealer CRM diary follow-ups, dual-logs master records, and searches inventory in sub-10ms.">
+  <meta property="og:url" content="https://nageljakes.github.io/autoagent/">
+  <meta name="theme-color" content="#030507">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #030507;
+      --bg-surface: #080c12;
+      --bg-card: rgba(14, 20, 30, 0.65);
+      --bg-card-hover: rgba(20, 28, 42, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-bright: rgba(255, 255, 255, 0.18);
+      --text: #f0f4f8;
+      --text-muted: #8e9bb0;
+      --primary: #10b981;
+      --primary-glow: rgba(16, 185, 129, 0.25);
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.2);
+      --blue: #3b82f6;
+      --radius: 16px;
+      --radius-sm: 8px;
+      --font-display: 'Archivo Black', sans-serif;
+      --font-sans: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+    }
+
+    body {
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.6;
+    }
+
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-glow-1 {
+      position: fixed;
+      top: -150px;
+      left: 20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-glow-2 {
+      position: fixed;
+      top: 40%;
+      right: -100px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%);
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(3, 5, 7, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-name {
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-tag {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: #10b981;
+      color: #030507;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: var(--border-bright);
+      transform: translateY(-2px);
+    }
+
+    .hero {
+      padding: 90px 0 60px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 999px;
+      font-size: 0.8rem;
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--primary);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: 3.2rem;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+
+    .hero-title .highlight {
+      background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.12rem;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      max-width: 540px;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+
+    .terminal-banner {
+      background: rgba(10, 15, 23, 0.9);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .terminal-text {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .terminal-prefix {
+      color: var(--primary);
+      user-select: none;
+    }
+
+    .terminal-cmd {
+      color: #93c5fd;
+    }
+
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: var(--primary);
+      color: #030507;
+      border-color: var(--primary);
+    }
+
+    .console-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(16, 185, 129, 0.08);
+    }
+
+    .console-header {
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .console-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .console-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    .console-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .console-badge {
+      font-size: 0.72rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .console-traffic-lights {
+      display: flex;
+      gap: 6px;
+    }
+
+    .traffic-light {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .traffic-light.red { background: #ef4444; }
+    .traffic-light.yellow { background: #f59e0b; }
+    .traffic-light.green { background: #10b981; }
+
+    .console-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 380px;
+      font-size: 0.88rem;
+    }
+
+    .chat-bubble {
+      max-width: 90%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.5;
+    }
+
+    .chat-bubble.salesperson {
+      align-self: flex-end;
+      background: #1e3a8a;
+      color: #eff6ff;
+      border-bottom-right-radius: 3px;
+    }
+
+    .chat-bubble.agent {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 3px;
+    }
+
+    .action-step {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      background: rgba(0, 0, 0, 0.4);
+      border-left: 3px solid var(--cyan);
+      padding: 8px 12px;
+      border-radius: 4px;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .action-step .step-title {
+      color: var(--cyan);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .console-controls {
+      background: rgba(0, 0, 0, 0.4);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .demo-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chip-btn:hover, .chip-btn.active {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .section {
+      padding: 90px 0;
+      position: relative;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto 60px;
+    }
+
+    .section-eyebrow {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--primary);
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+    }
+
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 28px;
+    }
+
+    .pillar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 34px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pillar-card:hover {
+      border-color: var(--border-bright);
+      background: var(--bg-card-hover);
+      transform: translateY(-4px);
+    }
+
+    .pillar-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 22px;
+    }
+
+    .pillar-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .pillar-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .pillar-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+
+    .pillar-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: #cbd5e1;
+    }
+
+    .pillar-list li span {
+      color: var(--primary);
+    }
+
+    .steps-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .step-card {
+      background: rgba(10, 16, 24, 0.7);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      position: relative;
+    }
+
+    .step-number {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      color: var(--primary);
+      margin-bottom: 10px;
+      opacity: 0.9;
+    }
+
+    .step-name {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .step-body {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .stats-ribbon {
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 50px 0;
+      margin: 40px 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      text-align: center;
+    }
+
+    .stat-item .stat-value {
+      font-family: var(--font-display);
+      font-size: 2.8rem;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-item .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 60px 0 40px;
+      margin-top: auto;
+      background: #020405;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    .footer-copy {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 50px 0;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 30px;
+      }
+      .hero-title {
+        font-size: 2.4rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- ══ NAV ══ -->
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <a href="#" class="nav-brand">
+        <div class="brand-icon">🚘</div>
+        <div class="brand-text">
+          <span class="brand-name">AutoAgent</span>
+          <span class="brand-tag">Dealership OS Harness</span>
+        </div>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#pillars">Architecture</a></li>
+        <li><a href="#workflow">Onboarding</a></li>
+        <li><a href="#demo">Live Console</a></li>
+        <li><a href="https://github.com/Nageljakes/autoagent" target="_blank" rel="noopener">GitHub</a></li>
+      </ul>
+      <a href="https://github.com/Nageljakes/autoagent" class="btn btn-ghost" target="_blank" rel="noopener">
+        <span>⭐ Star on GitHub</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- ══ HERO ══ -->
+  <header class="wrap hero">
+    <div class="hero-content">
+      <div class="badge-pill">
+        <span class="pulse-dot"></span>
+        Autonomous Dealership Operating System
+      </div>
+      <h1 class="hero-title">
+        Sales Companion First.<br>
+        <span class="highlight">Zero Clerical Friction.</span>
+      </h1>
+      <p class="hero-sub">
+        An enterprise automotive CRM automation co-pilot. Keeps customer chats on your personal phone, guarantees zero unauthorized bot replies, dual-logs CRM records, and moves diary follow-ups automatically.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="#quickstart" class="btn btn-primary">Deploy via One-Liner</a>
+        <a href="https://github.com/Nageljakes/autoagent" class="btn btn-ghost" target="_blank" rel="noopener">Explore Codebase</a>
+      </div>
+
+      <div class="terminal-banner" id="quickstart">
+        <div class="terminal-text">
+          <span class="terminal-prefix">$</span>
+          <span class="terminal-cmd" id="install-cmd">curl -sL https://raw.githubusercontent.com/Nageljakes/autoagent/main/install.sh | bash</span>
+        </div>
+        <button class="copy-btn" onclick="copyInstallCmd()">Copy</button>
+      </div>
+    </div>
+
+    <!-- ══ HERO LIVE SIMULATOR CONSOLE ══ -->
+    <div class="console-card" id="demo">
+      <div class="console-header">
+        <div class="console-identity">
+          <div class="console-avatar">🤖</div>
+          <span class="console-name">Agent Co-Pilot</span>
+          <span class="console-badge">RESTRICT_TO_OWNER = true</span>
+        </div>
+        <div class="console-traffic-lights">
+          <span class="traffic-light red"></span>
+          <span class="traffic-light yellow"></span>
+          <span class="traffic-light green"></span>
+        </div>
+      </div>
+
+      <div class="console-body" id="console-feed">
+        <div class="chat-bubble salesperson">
+          Follow up with Sipho about the SUV test drive he asked about yesterday.
+        </div>
+
+        <div class="action-step">
+          <span class="step-title">⚡ Cultural Language Guard</span>
+          <span>Detected African Cultural Name ("Sipho"). Strictly enforcing English business dialogue.</span>
+        </div>
+
+        <div class="action-step">
+          <span class="step-title">🔍 Local Pre-Owned Inventory Cache</span>
+          <span>Indexed SUV matched: 2024 Luxury Crossover (Stock #7821) @ R389,900.</span>
+        </div>
+
+        <div class="action-step">
+          <span class="step-title">📤 Dispatched via Companion Device</span>
+          <span>"Hi Sipho, Jakes here from the dealership. Just doing a quick check-in to see how your schedule looks for that SUV test drive today?"</span>
+        </div>
+
+        <div class="action-step">
+          <span class="step-title">📑 Dual-Logging Engine</span>
+          <span>Stamping ERA touchpoint record & moving diary follow-up +1 day.</span>
+        </div>
+
+        <div class="chat-bubble agent">
+          Follow-up sent to Sipho directly from your sales number! Touchpoint permanently recorded in CRM and diary moved to tomorrow.
+        </div>
+      </div>
+
+      <div class="console-controls">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">SIMULATE LIVE WORKFLOWS:</span>
+        <div class="demo-chips">
+          <button class="chip-btn active" onclick="loadScenario('followup')">WhatsApp Follow-Up</button>
+          <button class="chip-btn" onclick="loadScenario('stock')">Sub-10ms Stock Query</button>
+          <button class="chip-btn" onclick="loadScenario('quote')">Quote PDF Dispatch</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ STATS ══ -->
+  <section class="stats-ribbon">
+    <div class="wrap stats-grid">
+      <div class="stat-item">
+        <div class="stat-value">&lt; 10ms</div>
+        <div class="stat-label">Inventory Search Latency</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Companion Privacy Anchored</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Unprompted Customer Spam</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">2-Way</div>
+        <div class="stat-label">Dual-Logging CRM Fidelity</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PILLARS ══ -->
+  <section class="section" id="pillars">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="section-eyebrow">Enterprise Architecture</span>
+        <h2 class="section-title">Built specifically for high-performing automotive sales.</h2>
+        <p class="section-desc">
+          Automotive sales teams cannot risk unauthorized AI chatbots texting buyers erratically. AutoAgent isolates the AI into a strict private co-pilot mode.
+        </p>
+      </div>
+
+      <div class="pillars-grid">
+        <div class="pillar-card">
+          <div class="pillar-icon">📱</div>
+          <h3 class="pillar-title">Sales Companion First</h3>
+          <p class="pillar-desc">
+            All customer chats stay 100% anchored to the salesperson's real device. The AI agent never converses with clients directly or sends unprompted replies.
+          </p>
+          <ul class="pillar-list">
+            <li><span>✓</span> Passive indexing bridge over local SQLite</li>
+            <li><span>✓</span> Outbound follow-ups send from your real number</li>
+            <li><span>✓</span> Drop-in Baileys companion link protocol</li>
+          </ul>
+        </div>
+
+        <div class="pillar-card">
+          <div class="pillar-icon">📑</div>
+          <h3 class="pillar-title">CRM Dual-Logging Engine</h3>
+          <p class="pillar-desc">
+            Eliminates clerical diary upkeep. AutoAgent synchronizes today's 30+ diary entries, moves follow-up dates, and stamps notes into permanent customer ERA files.
+          </p>
+          <ul class="pillar-list">
+            <li><span>✓</span> Automated ColdFusion portal interaction</li>
+            <li><span>✓</span> Permanent ERA audit trail preservation</li>
+            <li><span>✓</span> Deal heat scoring based on touchpoints & quotes</li>
+          </ul>
+        </div>
+
+        <div class="pillar-card">
+          <div class="pillar-icon">⚡</div>
+          <h3 class="pillar-title">Sub-10ms Stock Engine</h3>
+          <p class="pillar-desc">
+            Local inventory cache with sub-second lookups across branches. Instantly generates formatted WhatsApp vehicle cards and high-resolution photo sets.
+          </p>
+          <ul class="pillar-list">
+            <li><span>✓</span> Real-time price, mileage, and branch filtering</li>
+            <li><span>✓</span> Automated multi-image gallery downloads</li>
+            <li><span>✓</span> Daily 2:00 AM cron inventory synchronization</li>
+          </ul>
+        </div>
+
+        <div class="pillar-card">
+          <div class="pillar-icon">🛡️</div>
+          <h3 class="pillar-title">Bulletproof Cultural Guard</h3>
+          <p class="pillar-desc">
+            Context-aware multi-tier language architecture. Detects South African naming conventions to ensure culturally appropriate English or Afrikaans outreach.
+          </p>
+          <ul class="pillar-list">
+            <li><span>✓</span> Indigenous African name safety guard (English standard)</li>
+            <li><span>✓</span> Traditional Afrikaans name adaptation</li>
+            <li><span>✓</span> Strict long dash ban prevents CRM text mangling</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ WORKFLOW ONBOARDING ══ -->
+  <section class="section" id="workflow" style="background: rgba(255, 255, 255, 0.01);">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="section-eyebrow">Interactive Deployment</span>
+        <h2 class="section-title">From zero to operational in 6 steps.</h2>
+        <p class="section-desc">
+          The deploy script handles dependencies, Antigravity brain setup, profile variables, WhatsApp dual-pairing, and background daemonization.
+        </p>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <h4 class="step-name">Environment Verification</h4>
+          <p class="step-body">Verifies Node.js 22 LTS, Python 3, PM2, and portal scraping dependencies automatically.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <h4 class="step-name">Antigravity AI Brain</h4>
+          <p class="step-body">Installs and tests the Antigravity CLI (agy) runtime for agentic tool calling and reasoning.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <h4 class="step-name">Variable Capture</h4>
+          <p class="step-body">Prompts for salesperson name, primary number, dealership name, and optional Telegram tokens.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">04</div>
+          <h4 class="step-name">Dual QR Pairing</h4>
+          <p class="step-body">Scan QR 1 to pair your sales companion monitor, then scan QR 2 to activate your private co-pilot bot.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">05</div>
+          <h4 class="step-name">Portal Authentication</h4>
+          <p class="step-body">Tests CRM portal credentials live and downloads today's active diary entries immediately.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">06</div>
+          <h4 class="step-name">Daemon Launch</h4>
+          <p class="step-body">Deploys the monitor, bot, health check, and watchdog under PM2 for persistent auto-recovery.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FOOTER ══ -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-left">
+        <a href="#" class="nav-brand">
+          <div class="brand-icon">🚘</div>
+          <div class="brand-text">
+            <span class="brand-name">AutoAgent</span>
+            <span class="brand-tag">Dealership OS</span>
+          </div>
+        </a>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Nageljakes/autoagent" target="_blank" rel="noopener">GitHub Repository</a></li>
+        <li><a href="https://nageljakes.github.io/jaxtechweb/" target="_blank" rel="noopener">Jaxtech Parent Site</a></li>
+        <li><a href="https://github.com/Nageljakes/autoagent/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+      <div class="footer-copy">
+        Crafted for next-generation automotive sales.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copyInstallCmd() {
+      const text = document.getElementById('install-cmd').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.innerText = 'Copied! ✓';
+        btn.style.background = '#10b981';
+        btn.style.color = '#030507';
+        setTimeout(() => {
+          btn.innerText = 'Copy';
+          btn.style.background = '';
+          btn.style.color = '';
+        }, 2000);
+      });
+    }
+
+    const scenarios = {
+      followup: [
+        { type: 'salesperson', text: 'Follow up with Sipho about the SUV test drive he asked about yesterday.' },
+        { type: 'step', title: '⚡ Cultural Language Guard', text: 'Detected African Cultural Name ("Sipho"). Strictly enforcing English business dialogue.' },
+        { type: 'step', title: '🔍 Local Pre-Owned Inventory Cache', text: 'Indexed SUV matched: 2024 Luxury Crossover (Stock #7821) @ R389,900.' },
+        { type: 'step', title: '📤 Dispatched via Companion Device', text: '"Hi Sipho, Jakes here from the dealership. Just doing a quick check-in to see how your schedule looks for that SUV test drive today?"' },
+        { type: 'step', title: '📑 Dual-Logging Engine', text: 'Stamping ERA touchpoint record & moving diary follow-up +1 day.' },
+        { type: 'agent', text: 'Follow-up sent to Sipho directly from your sales number! Touchpoint permanently recorded in CRM and diary moved to tomorrow.' }
+      ],
+      stock: [
+        { type: 'salesperson', text: 'Find automatic petrol cars under R250k across our branches.' },
+        { type: 'step', title: '⚡ Sub-10ms Stock Query', text: 'Scanning /jax-shared/data/inventory/stock.json (62 vehicles in 4.2ms).' },
+        { type: 'step', title: '🎯 Matches Located', text: '3 vehicles found: 2023 Hatchback (R219k), 2022 Crossover (R239k), 2021 Sedan (R245k).' },
+        { type: 'agent', text: 'Found 3 matching options under R250,000 in local stock. Would you like me to prepare formatted image galleries to share with your customer?' }
+      ],
+      quote: [
+        { type: 'salesperson', text: 'Download and send the latest quote PDF for customer Corne Botha.' },
+        { type: 'step', title: '🔐 CRM Session Authenticated', text: 'Accessing portal quote frame via CFID/CFTOKEN session.' },
+        { type: 'step', title: '📄 PDF Extracted', text: 'Saved to data/quotes/Corne_Botha_Quote_2026.pdf (142 KB).' },
+        { type: 'step', title: '📤 Dispatched via WhatsApp', text: '[SEND_DOCUMENT: data/quotes/Corne_Botha_Quote_2026.pdf]' },
+        { type: 'agent', text: 'Corne Botha\'s official quote PDF has been downloaded and delivered via your companion WhatsApp.' }
+      ]
+    };
+
+    function loadScenario(key) {
+      document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const feed = document.getElementById('console-feed');
+      feed.innerHTML = '';
+
+      const items = scenarios[key];
+      items.forEach((item, index) => {
+        setTimeout(() => {
+          if (item.type === 'step') {
+            const step = document.createElement('div');
+            step.className = 'action-step';
+            step.innerHTML = `<span class="step-title">${item.title}</span><span>${item.text}</span>`;
+            feed.appendChild(step);
+          } else {
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${item.type}`;
+            bubble.innerText = item.text;
+            feed.appendChild(bubble);
+          }
+        }, index * 180);
+      });
+    }
+  </script>
+</body>
+</html>
