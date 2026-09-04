@@ -5,6 +5,7 @@
 [![PM2](https://img.shields.io/badge/Daemon-PM2-blueviolet.svg)](https://pm2.keymetrics.io/)
 [![Antigravity](https://img.shields.io/badge/Brain-Google_Antigravity-orange.svg)](https://antigravity.google/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Website](https://img.shields.io/badge/Website-Live_Demo-10b981.svg)](https://nageljakes.github.io/autoagent/)
 
 **AutoAgent (Dealership OS)** is an autonomous, private AI sales co-pilot and CRM automation harness built specifically for automotive dealerships. It bridges dealership management portals (Dealership CRM / DMS Portal) with real-time WhatsApp customer communication, eliminating manual clerical friction and keeping diary follow-ups completely on track.
 
