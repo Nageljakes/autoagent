@@ -13,11 +13,20 @@ The **JAX WhatsApp Monitor** (`jax-whatsapp-monitor`) is a background Baileys se
 ## Key Operational Safeguards (Baileys & Multi-Device)
 - **Key Store Caching**: Always ensure `makeCacheableSignalKeyStore(state.keys, logger)` is used in `auth.keys` when initializing `makeWASocket` to prevent `Bad MAC` session decryption failures during high-throughput syncs.
 - **Message Content Extraction**: Filter out protocol stubs and empty `{}` sync frames to prevent dummy `[Media/Message]` rows from polluting the message database.
+- **Inbound Media & Visual Understanding (Credit Scores, Documents, Photos)**:
+  - Inbound photos, screenshots, voice notes, and documents sent by prospects are automatically downloaded by `jax-whatsapp-monitor` and saved to `{INSTALL_DIR}/jax-shared/data/media/inbound/`.
+  - The local absolute file path is indexed in `messages.media_url` and recorded in `content` as `[Image: <path>]` or `[File: <path>]`.
+  - When reviewing prospect chats or checking customer replies, the agent MUST inspect any inbound media using `view_file` to accurately extract exact numbers (e.g. credit scores like 570 vs 610, bureau details, IDs, payslips, or vehicle condition) before taking action or drafting replies.
 
 ## Access Methods
 
 ### 1. REST API (Port 9095)
 The monitor runs an internal HTTP API at `http://127.0.0.1:9095`:
+
+- **Check Number Registration on WhatsApp**:
+  `curl -s "http://127.0.0.1:9095/check-number/<phone_number>"`
+  Example: `curl -s "http://127.0.0.1:9095/check-number/27821234567"`
+  Returns: `{"success": true, "phone": "27821234567", "exists": true, "jid": "...@s.whatsapp.net"}`
 
 - **Get Conversation History for a Prospect**:
   `curl -s "http://127.0.0.1:9095/history/<phone_number>?limit=50"`
@@ -36,11 +45,11 @@ The monitor runs an internal HTTP API at `http://127.0.0.1:9095`:
     -H "Content-Type: application/json" \
     -d '{"phone": "27821234567", "message": "Hi..., {SALESPERSON_NAME} here from {DEALERSHIP_NAME}...", "authorizedBy": "user_explicit_command"}'
   ```
-  - **Payload**: `phone` (E.164 formatted string without `+`), `message` (UTF-8 text), `authorizedBy` (`"user_explicit_command"`).
+  - **Payload**: `phone` (E.164 formatted string without `+`), `message` (UTF-8 text), `authorizedBy` (`"user_explicit_command"`), optional `documentPath` (for quote PDFs) or `imagePath`.
   - **Sender Identity & Naming (CRITICAL)**: Always compose and introduce outbound messages from **{SALESPERSON_NAME}** (e.g. '{SALESPERSON_NAME} here from {DEALERSHIP_NAME}' or '{SALESPERSON_NAME} hier van {DEALERSHIP_NAME}'). NEVER refer to him as '{CRM_USERNAME}' under any circumstances.
   - **STRICT LONG DASH BAN (CRITICAL)**: Outbound WhatsApp messages must NEVER contain a long dash (em dash or en dash). Always use standard short hyphens (-) or natural punctuation.
   - **Response**: `{"success": true, "messageId": "3EB0...", "recipient": "...", "timestamp": 178756...}`
-  - **Paired Workflow**: Used in tandem with `action_prospect.py` to dispatch prospect follow-ups and automatically move diary dates on Dealer CRM.
+  - **Paired Workflow**: Used in tandem with `action_prospect.py` to dispatch prospect follow-ups and automatically move diary dates on Dealership CRM.
 
 ### 2. Direct SQLite Database
 You can query the SQLite database directly:
@@ -51,7 +60,7 @@ You can query the SQLite database directly:
 
 Example query via CLI:
 ```bash
-sqlite3 {INSTALL_DIR}/jax-shared/data/prospects.db "SELECT from_me, content, datetime(timestamp, 'unixepoch') FROM messages WHERE phone_number LIKE '%640884966%' ORDER BY timestamp DESC LIMIT 20;"
+sqlite3 {INSTALL_DIR}/jax-shared/data/prospects.db "SELECT from_me, content, datetime(timestamp, 'unixepoch') FROM messages WHERE phone_number LIKE '%123456%' ORDER BY timestamp DESC LIMIT 20;"
 ```
 
 ### 3. Historical Chat Import & Backfilling
@@ -80,19 +89,19 @@ import { getProspectConversation, searchProspectMessages, listProspects } from '
   - `reasons`: detailed list of linguistic and cultural markers
 
 ### 6. Autonomous Customer Follow-Up Tool (`action_followup.py`)
-- Location: `{INSTALL_DIR}/.gemini/config/skills/whatsapp-monitor/scripts/action_followup.py`
-  (also accessible via `{INSTALL_DIR}/.gemini/config/skills/crm-portal/scripts/action_followup.py`)
+- Location: `skills/whatsapp-monitor/scripts/action_followup.py`
+  (also accessible via `skills/autohub-portal/scripts/action_followup.py`)
 - Usage:
   ```bash
-  PYTHONPATH={INSTALL_DIR}/.local/lib/python3.11/site-packages python3 {INSTALL_DIR}/.gemini/config/skills/whatsapp-monitor/scripts/action_followup.py --query "<Name or Phone>" --intent "<Intent>" --days 1
+  PYTHONPATH=skills/whatsapp-monitor/scripts python3 skills/whatsapp-monitor/scripts/action_followup.py --query "<Name or Phone>" --intent "<Intent>" --days 1
   ```
 - Capabilities:
-  - Gathers full context across phone numbers, mobile LIDs, and Dealer CRM CRM notes.
+  - Gathers full context across phone numbers, mobile LIDs, and CRM notes.
   - Automatically detects preferred language (Afrikaans vs English) and swing history.
   - Drafts natural 1-2 sentence follow-up matching {SALESPERSON_NAME}' voice and intent.
   - Enforces {SALESPERSON_NAME} sender identity (never {CRM_USERNAME}) and strict long dash ban.
   - Guards against sending English messages to verified Afrikaans customers.
-  - Dispatches via the monitor bridge and dual-logs to Dealer CRM CRM while rescheduling the diary.
+  - Dispatches via the monitor bridge and dual-logs to Dealership CRM while rescheduling the diary.
 - Flags:
   - `--query`, `-q`: Customer name, surname, or phone number.
   - `--name`, `-n`: Explicit customer name if known (ensures 100% accurate cultural name evaluation even when querying by phone).
@@ -111,7 +120,7 @@ import { getProspectConversation, searchProspectMessages, listProspects } from '
 Before generating diary summaries, executive briefings, or customer recommendations:
 1. **Bridge Verification**: Ensure the WhatsApp monitor process is actively running and connected (`GET http://127.0.0.1:9095/health` or `pm2 status jax-whatsapp-monitor`). If stopped or disconnected, restart via `pm2 restart jax-whatsapp-monitor`.
 2. **True Phone Resolution**: Always extract all possible phone numbers from the Customer ERA profile (`customerera_selecttemplate.cfm`) so queries match the bridge accurately.
-3. **Signal Precedence**: Live WhatsApp conversation history ALWAYS supersedes older Dealer CRM notes. Never report "no response" if the customer sent incoming messages via WhatsApp.
+3. **Signal Precedence**: Live WhatsApp conversation history ALWAYS supersedes older CRM notes. Never report "no response" if the customer sent incoming messages via WhatsApp.
 
 ## Creator & Internal Message Isolation (Prompt Leakage Prevention) (MANDATORY)
 To prevent internal developer prompts, slash commands (`/goal`, `/learn`, `/plan`), and AI agent messages from leaking into customer briefings:
@@ -119,8 +128,8 @@ To prevent internal developer prompts, slash commands (`/goal`, `/learn`, `/plan
 2. **Creator Identification**: Creator LIDs (`{OWNER_LID}`) and personal numbers (`{OWNER_PHONE}`) are strictly classified as `vip` / `internal_team` and must never be queried as customer prospects.
 3. **Directive & Syntax Stripping**: Generator scripts must automatically discard any message text containing slash directives (`/goal`, `/learn`, `/boost`, `/plan`), bot identities (`Tiny AI Agent`), or skill names (`SKILL.md`).
 
-## Integration with Dealer CRM Portal & Diary Workflows
-- **Cross-Referencing**: When executing diary extractions or working through the daily 5-by-5 protocol (`crm-portal` skill), cross-reference customer phone numbers against `http://127.0.0.1:9095/history/<phone>`.
+## Integration with Dealership CRM Portal & Diary Workflows
+- **Cross-Referencing**: When executing diary extractions or working through the daily 5-by-5 protocol (`autohub-portal` skill), cross-reference customer phone numbers against `http://127.0.0.1:9095/history/<phone>`.
 - **Pre-Call WhatsApp Context**: Inspect whether the customer has already received an introduction, viewed quotes, or sent specific objections/requests via WhatsApp before calling.
 - **Dynamic Likelihood Scoring**: Real-time WhatsApp responsiveness (replies, inquiries, trade-in details) directly increases lead conversion probability in the daily diary ranking.
 - Always check the WhatsApp monitor when the user asks if a customer has replied, what was discussed in WhatsApp, or whether messages were delivered.

@@ -2,7 +2,8 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore
+  makeCacheableSignalKeyStore,
+  downloadMediaMessage
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcodeTerminal from 'qrcode-terminal';
@@ -33,6 +34,11 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const AUTH_DIR = process.env.AUTH_DIR || path.resolve('./auth_info_monitor');
 const PORT = parseInt(process.env.API_PORT || '9095', 10);
 const PAIRING_NUMBER = (process.env.PAIRING_PHONE_NUMBER || '').replace(/[^0-9]/g, '');
+const MEDIA_INBOUND_DIR = process.env.MEDIA_INBOUND_DIR || path.resolve(__dirname, '../jax-shared/data/media/inbound');
+
+if (!fs.existsSync(MEDIA_INBOUND_DIR)) {
+  fs.mkdirSync(MEDIA_INBOUND_DIR, { recursive: true });
+}
 
 let sock = null;
 let connectionStatus = 'DISCONNECTED';
@@ -54,6 +60,12 @@ function unwrapMessage(rawMsg) {
       m = m.documentWithCaptionMessage.message;
     } else if (m.editedMessage?.message?.protocolMessage?.editedMessage) {
       m = m.editedMessage.message.protocolMessage.editedMessage;
+    } else if (m.deviceSentMessage?.message) {
+      m = m.deviceSentMessage.message;
+    } else if (m.botInvokeMessage?.message) {
+      m = m.botInvokeMessage.message;
+    } else if (m.groupMentionedMessage?.message) {
+      m = m.groupMentionedMessage.message;
     } else {
       break;
     }
@@ -128,7 +140,85 @@ function extractMessageContent(rawMsg) {
   return { text: '[Media/Message]', type: 'media' };
 }
 
-function processIncomingMessage(msg) {
+async function downloadAndSaveMedia(msg, messageType, phoneNumber, fromMe = false) {
+  try {
+    const unwrapped = unwrapMessage(msg);
+    if (!unwrapped) return null;
+
+    let ext = 'bin';
+    if (unwrapped.imageMessage) {
+      const mime = unwrapped.imageMessage.mimetype || '';
+      ext = mime.includes('png') ? 'png' : (mime.includes('webp') ? 'webp' : 'jpg');
+    } else if (unwrapped.documentMessage) {
+      const fileName = unwrapped.documentMessage.fileName || '';
+      const dotIndex = fileName.lastIndexOf('.');
+      if (dotIndex !== -1 && dotIndex < fileName.length - 1) {
+        ext = fileName.slice(dotIndex + 1).toLowerCase().replace(/[^a-z0-9]/g, '');
+      } else {
+        const mime = unwrapped.documentMessage.mimetype || '';
+        ext = mime.includes('pdf') ? 'pdf' : (mime.includes('image') ? 'jpg' : 'bin');
+      }
+    } else if (unwrapped.audioMessage) {
+      ext = 'ogg';
+    } else if (unwrapped.videoMessage) {
+      ext = 'mp4';
+    } else {
+      const mediaObj = unwrapped.imageMessage || unwrapped.documentMessage || unwrapped.audioMessage || unwrapped.videoMessage;
+      const mime = mediaObj?.mimetype || '';
+      if (mime.includes('png')) ext = 'png';
+      else if (mime.includes('webp')) ext = 'webp';
+      else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+      else if (mime.includes('pdf')) ext = 'pdf';
+      else if (mime.includes('ogg')) ext = 'ogg';
+      else if (mime.includes('mp4')) ext = 'mp4';
+      else ext = 'jpg';
+    }
+
+    const cleanId = (msg.key?.id || String(Date.now())).replace(/[^a-zA-Z0-9_-]/g, '');
+    const cleanPhone = (phoneNumber || 'media').replace(/[^0-9]/g, '');
+    const direction = fromMe ? 'outbound' : 'inbound';
+    const fileName = `${Date.now()}_${cleanId}_${direction}_${cleanPhone}.${ext}`;
+    const targetPath = path.join(MEDIA_INBOUND_DIR, fileName);
+
+    let buffer = null;
+    try {
+      buffer = await downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        {
+          logger,
+          reuploadRequest: sock ? sock.updateMediaMessage : undefined
+        }
+      );
+    } catch (e1) {
+      if (unwrapped && unwrapped !== msg.message) {
+        buffer = await downloadMediaMessage(
+          { key: msg.key, message: unwrapped },
+          'buffer',
+          {},
+          {
+            logger,
+            reuploadRequest: sock ? sock.updateMediaMessage : undefined
+          }
+        );
+      } else {
+        throw e1;
+      }
+    }
+
+    if (buffer && buffer.length > 0) {
+      await fs.promises.writeFile(targetPath, buffer);
+      logger.info(`💾 [MEDIA SAVED] ${fromMe ? 'Outbound' : 'Inbound'} ${messageType} (${buffer.length} bytes) saved to: ${targetPath}`);
+      return targetPath;
+    }
+  } catch (err) {
+    logger.warn(`Could not download media for ${msg?.key?.id}: ${err.message}`);
+  }
+  return null;
+}
+
+async function processIncomingMessage(msg, isLive = true) {
   if (!msg || !msg.key) return;
 
   const remoteJid = msg.key.remoteJid;
@@ -152,6 +242,33 @@ function processIncomingMessage(msg) {
   const phoneNumber = isGroup && participantPhone ? participantPhone : cleanRemote;
   const fromMe = Boolean(msg.key.fromMe);
 
+  let mediaUrl = null;
+  const isMediaMsg = ['image', 'document', 'audio', 'video', 'media'].includes(extracted.type);
+  if (isLive && isMediaMsg) {
+    try {
+      mediaUrl = await downloadAndSaveMedia(msg, extracted.type, phoneNumber, fromMe);
+    } catch (err) {
+      logger.warn({ err: err.message, msgId: msg.key.id }, 'Failed to download media message');
+    }
+  }
+
+  let finalContent = extracted.text;
+  if (mediaUrl) {
+    if (extracted.type === 'image' && (!extracted.text || extracted.text === '[Image]')) {
+      finalContent = `[Image: ${mediaUrl}]`;
+    } else if (extracted.type === 'image' && extracted.text) {
+      finalContent = `${extracted.text} [Image: ${mediaUrl}]`;
+    } else if (extracted.type === 'document') {
+      finalContent = `${extracted.text} [File: ${mediaUrl}]`;
+    } else if (extracted.type === 'audio') {
+      finalContent = `[Audio/Voice Note: ${mediaUrl}]`;
+    } else if (extracted.type === 'video') {
+      finalContent = `[Video: ${mediaUrl}]`;
+    } else if (extracted.type === 'media') {
+      finalContent = `[Media Attachment: ${mediaUrl}]`;
+    }
+  }
+
   saveMessage({
     id: msg.key.id,
     jid: remoteJid,
@@ -159,13 +276,14 @@ function processIncomingMessage(msg) {
     fromMe,
     senderName: msg.pushName || (fromMe ? 'You / Agent' : null),
     messageType: extracted.type,
-    content: extracted.text,
+    content: finalContent,
+    mediaUrl,
     timestamp: Number(msg.messageTimestamp || Math.floor(Date.now() / 1000))
   });
 
-  logger.debug(`Saved message [${msg.key.id}] from ${phoneNumber} (fromMe: ${fromMe}, isGroup: ${isGroup})`);
+  logger.debug(`Saved message [${msg.key.id}] from ${phoneNumber} (fromMe: ${fromMe}, isGroup: ${isGroup}, media: ${Boolean(mediaUrl)})`);
 
-  // Check if message is a CRM lead notification (from {LEAD_NOTIFIER_NAME} or on dealership group)
+  // Check if message is a CRM lead notification (from configured lead notifier or on dealership group)
   if (!fromMe && isLeadNotification({
     senderPhone: participantPhone || cleanRemote,
     pushName: msg.pushName,
@@ -173,7 +291,7 @@ function processIncomingMessage(msg) {
     isGroup,
     remoteJid
   })) {
-    logger.info(`🎯 Lead alert detected: "${extracted.text.slice(0, 100)}". Triggering Dealer CRM lead acceptance...`);
+    logger.info(`🎯 Lead alert detected: "${extracted.text.slice(0, 100)}". Triggering autoHUB lead acceptance...`);
     autoAcceptLeads({
       msgId: msg.key.id,
       senderPhone: participantPhone || cleanRemote,
@@ -264,7 +382,7 @@ async function startWhatsAppMonitor() {
     if (messages && Array.isArray(messages)) {
       for (const msg of messages) {
         try {
-          processIncomingMessage(msg);
+          processIncomingMessage(msg, false); // isLive = false, avoid mass download during historical sync
         } catch (e) {}
       }
     }
@@ -283,7 +401,7 @@ async function startWhatsAppMonitor() {
   sock.ev.on('messages.upsert', async ({ messages: msgs, type }) => {
     try {
       for (const msg of msgs) {
-        processIncomingMessage(msg);
+        await processIncomingMessage(msg, true);
       }
     } catch (err) {
       logger.error({ err }, 'Error processing messages.upsert in monitor bridge');
@@ -305,6 +423,29 @@ app.get('/health', (req, res) => {
     pairingConfigured: Boolean(PAIRING_NUMBER),
     uptime: process.uptime()
   });
+});
+
+// Check if a phone number is registered on WhatsApp
+app.get('/check-number/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    if (connectionStatus !== 'CONNECTED' || !sock) {
+      return res.status(503).json({ success: false, error: 'WhatsApp monitor bridge is not currently connected' });
+    }
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const results = await sock.onWhatsApp(cleanPhone);
+    const exists = Boolean(results && results.length > 0 && results[0]?.exists);
+    const jid = exists ? results[0].jid : null;
+    res.json({
+      success: true,
+      phone: cleanPhone,
+      exists,
+      jid,
+      details: results || []
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Get Conversation History (Prospect or Coworker)
@@ -425,14 +566,14 @@ app.get('/context/:query', (req, res) => {
       'waldo', 'zander', 'annelize', 'annelie', 'elize', 'marilize', 'liezel', 'liezl',
       'sanet', 'ronel', 'rina', 'martie', 'susan', 'wilma', 'hannetjie', 'magda', 'marietjie',
       'daleen', 'alta', 'elmarie', 'yolande', 'charmaine', 'petro', 'estelle', 'lizette',
-      'corrie', 'bettie', 'heleen', 'ilse', 'sunette', 'carina', 'lizelle',
+      'corrie', 'bettie', 'heleen', 'ilse', 'sunette', 'carina', 'lizelle', 'tinkie',
       'andorette', 'natassja', 'mulder', 'botha', 'matthee', 'van der merwe', 'du plessis',
       'venter', 'coetzee', 'fourie', 'pretorius', 'van wyk', 'steyn', 'de jager', 'nel',
       'smit', 'kruger', 'oosthuizen', 'marais', 'erasmus', 'labuschagne', 'oberholzer',
       'potgieter', 'cloete', 'joubert', 'viljoen', 'bezuidenhout', 'le roux', 'meyer',
       'boshoff', 'cronje', 'rossouw', 'swanepoel', 'snyman', 'bester', 'prinsloo',
       'jansen van rensburg', 'engelbrecht', 'van zyl', 'du toit', 'van niekerk', 'grobler',
-      'van staden', 'badenhorst', 'myburgh', 'olivier', 'wentzel', 'van heerden',
+      'van staden', 'badenhorst', 'cilliers', 'myburgh', 'olivier', 'wentzel', 'van heerden',
       'van deventer', 'van rensburg', 'van vuuren', 'van rooyen', 'van jaarsveld', 'van dyk',
       'van biljon', 'van aardt', 'du preez', 'de wet', 'de beer', 'de klerk', 'de villiers',
       'de bruyn', 'de lange', 'de vos', 'de kock', 'naude', 'naudé', 'pienaar', 'theron',
@@ -465,7 +606,7 @@ app.get('/context/:query', (req, res) => {
       'goeie môre', 'goeie naand', 'as dit', 'as jy', 'wanneer sal', 'vinnige geselsie',
       'vinnige luitjie', 'ek volg op', 'ek wil hoor', 'stuur vir', 'kontak my', 'bel my',
       'skakel my', 'praat met', 'gee my', 'oor whatsapp', 'hoe lyk', 'wat is', 'wat kos',
-      'hoeveel kos', 'hoe lyk jou', '{SALESPERSON_NAME_LOWER} hier van', '{SALESPERSON_NAME_LOWER} hier weer'
+      'hoeveel kos', 'hoe lyk jou'
     ];
 
     const ENGLISH_EXCLUSIVE_WORDS = new Set([
@@ -486,8 +627,14 @@ app.get('/context/:query', (req, res) => {
       'how is', 'hope you', 'how your', 'your schedule', 'good time', 'quick check',
       'happy to assist', 'give you a call', 'give me a call', 'right here', 'after hours',
       'trade in', 'test drive', 'vehicle search', 'hear from you', 'looking for',
-      '{SALESPERSON_NAME_LOWER} here from', '{SALESPERSON_NAME_LOWER} here again', 'in english', 'please send', 'send me'
+      'in english', 'please send', 'send me'
     ];
+
+    const salesName = (process.env.SALESPERSON_NAME || '').toLowerCase().trim();
+    if (salesName) {
+      AFRIKAANS_PHRASES.push(`${salesName} hier van`, `${salesName} hier weer`);
+      ENGLISH_PHRASES.push(`${salesName} here from`, `${salesName} here again`);
+    }
 
     function scoreText(text) {
       if (!text || text.startsWith('[') && text.endsWith(']')) return { afr: 0, eng: 0 };
@@ -660,7 +807,7 @@ app.post('/tag', (req, res) => {
   }
 });
 
-// Trigger Dealer CRM Lead Acceptance Manually via API
+// Trigger AutoHub Lead Acceptance Manually via API
 app.post('/accept-leads', async (req, res) => {
   try {
     const result = await autoAcceptLeads({ source: 'manual_api_trigger', requestedBy: req.body.requestedBy || 'agent' }, sock);
@@ -701,15 +848,41 @@ app.post('/send', async (req, res) => {
 
     logger.info(`Sending explicit outbound message to ${cleanPhone}, authorized by: ${authorizedBy}`);
 
+    // Verify recipient is actually registered on WhatsApp before dispatching
+    let targetJid = jid;
+    try {
+      const waResults = await sock.onWhatsApp(cleanPhone);
+      if (!waResults || waResults.length === 0 || !waResults[0]?.exists) {
+        logger.warn(`Outbound message aborted: ${cleanPhone} is not registered on WhatsApp`);
+        logAuditSend({
+          prospectPhone: cleanPhone,
+          content: cleanMsg || '[Image Attachment]',
+          authorizedBy,
+          status: 'FAILED',
+          errorMessage: 'Recipient phone number is not registered on WhatsApp'
+        });
+        return res.status(400).json({
+          success: false,
+          notOnWhatsApp: true,
+          error: `Phone number ${cleanPhone} is not registered on WhatsApp`
+        });
+      }
+      if (waResults[0]?.jid) {
+        targetJid = waResults[0].jid;
+      }
+    } catch (checkErr) {
+      logger.warn({ err: checkErr }, `onWhatsApp check failed for ${cleanPhone}, proceeding with caution`);
+    }
+
     let result;
     if (documentPath && fs.existsSync(documentPath)) {
       const buffer = fs.readFileSync(documentPath);
-      result = await sock.sendMessage(jid, { document: buffer, mimetype: "application/pdf", fileName: documentPath.split("/").pop(), caption: cleanMsg || "" });
+      result = await sock.sendMessage(targetJid, { document: buffer, mimetype: "application/pdf", fileName: documentPath.split("/").pop(), caption: cleanMsg || "" });
     } else if (imagePath && fs.existsSync(imagePath)) {
       const buffer = fs.readFileSync(imagePath);
-      result = await sock.sendMessage(jid, { image: buffer, caption: cleanMsg || '' });
+      result = await sock.sendMessage(targetJid, { image: buffer, caption: cleanMsg || '' });
     } else {
-      result = await sock.sendMessage(jid, { text: cleanMsg });
+      result = await sock.sendMessage(targetJid, { text: cleanMsg });
     }
 
     logAuditSend({
@@ -722,12 +895,13 @@ app.post('/send', async (req, res) => {
 
     saveMessage({
       id: result?.key?.id || `out_${Date.now()}`,
-      jid,
+      jid: targetJid,
       phoneNumber: cleanPhone,
       fromMe: true,
-      senderName: '{SALESPERSON_NAME} / {DEALERSHIP_NAME}',
-      messageType: imagePath ? 'image' : 'text',
-      content: cleanMsg || '[Image Attachment]',
+      senderName: (process.env.SALESPERSON_NAME ? `${process.env.SALESPERSON_NAME} / ${process.env.DEALERSHIP_NAME || 'Dealership'}` : '{SALESPERSON_NAME} / {DEALERSHIP_NAME}'),
+      messageType: documentPath ? 'document' : (imagePath ? 'image' : 'text'),
+      content: cleanMsg || (documentPath ? '[Document Attachment]' : (imagePath ? '[Image Attachment]' : '')),
+      mediaUrl: documentPath || imagePath || null,
       timestamp: Math.floor(Date.now() / 1000)
     });
 

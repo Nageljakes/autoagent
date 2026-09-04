@@ -2,37 +2,52 @@
 name: bb-used-cars
 description: >-
   Search and inspect pre-owned and used car inventory across BB Dealerships.
-  Prioritizes Dealership & Pre-Owned inventory by default, and searches extended Pretoria branches on instruction.
+  Prioritizes Dealership & Pre-Owned inventory by default, and searches extended regional branches on instruction.
   Automates vehicle image set downloads and formatted caption outreach.
 ---
 
 # BB Pre-Owned / Used Car Stock Inventory & Customer Outreach
 
 ## Overview
-This skill guides stock lookups, inventory sourcing, vehicle image scraping/downloading, and structured WhatsApp outreach across BB Group dealership websites in the Pretoria region.
+This skill guides stock lookups, inventory sourcing, vehicle image scraping/downloading, and structured WhatsApp outreach across dealership websites.
 
-## Local Inventory Cache & Performance
-All pre-owned inventory for **Dealership Branch** and **Pre-Owned Branch** is pre-cached locally on disk and synced daily at 2:00 AM:
+## Local Inventory Cache & Daily Stock Sheets
+All pre-owned inventory for **{DEALERSHIP_NAME}** and **{DEALERSHIP_NAME_ALT}** is dynamically crawled, parsed, and synced daily at 1:00 AM SAST (GMT+2 Johannesburg / 23:00 UTC) without images:
+- **Daily Stock Sheet (CSV)**: `{INSTALL_DIR}/jax-shared/data/inventory/stock_sheet.csv`
+- **Daily Stock Sheet (JSON)**: `{INSTALL_DIR}/jax-shared/data/inventory/stock_sheet.json`
+- **Daily Stock Sheet (Markdown)**: `{INSTALL_DIR}/jax-shared/data/inventory/stock_sheet.md`
 - **Metadata Database**: `{INSTALL_DIR}/jax-shared/data/inventory/stock.json`
-- **Local Photo Galleries**: `{INSTALL_DIR}/jax-shared/data/inventory/vehicles/<slug>/`
-- **Instant Search Script**: `PYTHONPATH={INSTALL_DIR}/.local/lib/python3.11/site-packages python3 {INSTALL_DIR}/.gemini/config/skills/bb-used-cars/scripts/search_stock.py --min-price <min> --max-price <max> -q "<query>"`
+- **Dynamic Sync Engine**: `python3 {INSTALL_DIR}/jax-shared/scripts/sync_stock.py`
+- **Instant Search Script**: `PYTHONPATH=skills/bb-used-cars/scripts python3 skills/bb-used-cars/scripts/search_stock.py --min-price <min> --max-price <max> -q "<query>" [--stock-id <id>] [--vin <vin>] [--mm-code <code>] [--body <style>] [--color <color>]`
+
+## Zero-Friction Availability Query Protocol (MANDATORY)
+Whenever {SALESPERSON_NAME} asks for vehicle availability (by model, budget, body style, MM Code, Stock ID, or VIN):
+1. **Instant Local Cache Query**: Run `search_stock.py` or inspect `{INSTALL_DIR}/jax-shared/data/inventory/stock.json` immediately (<10ms).
+2. **Immediate Availability Presentation**: Present the result directly with zero friction:
+   - Model, Year, Floor ({DEALERSHIP_NAME} or {DEALERSHIP_NAME_ALT})
+   - Price & Mileage
+   - Body style, Transmission, Fuel, Exterior Color
+   - Stock ID, MM Code, VIN
+   - Listing URL
+3. **No Fluff or Web Crawl Delay**: Answer on the fly from cache without re-scraping the web or asking unnecessary questions when the cache has the answer.
+4. **Closest Alternatives**: If an exact vehicle is sold or unavailable, immediately present the closest alternative in stock.
 
 ## Dealership Hierarchy & Priority
 
-### 1. Primary Dealerships (Dealership - Always Search First)
-Always check the local cache or primary primary branch sites first for any used vehicle lookup or customer inquiry:
-- **Dealership Branch**: https://dealership.example.com/used/
-- **Pre-Owned Branch**: https://preowned.example.com/used/
+### 1. Primary Dealerships ({DEALERSHIP_NAME} - Always Search First)
+Always check the local cache or primary branch sites first for any used vehicle lookup or customer inquiry:
+- **{DEALERSHIP_NAME}**: https://dealership.example.com/used/
+- **{DEALERSHIP_NAME_ALT}**: https://preowned.example.com/used/
 
 **Search Protocol (Instant & Direct)**:
 1. Run `search_stock.py` (or inspect `{INSTALL_DIR}/jax-shared/data/inventory/stock.json`).
 2. Filter the vehicles matching the requested model or price bracket.
 3. If matching options are found (or even 1 match), immediately present the result.
 4. If there are few exact matches, include the closest available alternatives just above the budget and ask if the customer/{SALESPERSON_NAME} wants to see those.
-5. **DO NOT** loop through secondary branches or crawl dozens of pages unless {SALESPERSON_NAME} explicitly asks to "expand search to all Pretoria branches" or "check other dealerships".
+5. **DO NOT** loop through secondary branches or crawl dozens of pages unless {SALESPERSON_NAME} explicitly asks to "expand search to all regional branches" or "check other dealerships".
 
 ### 2. Extended Regional Dealerships (Search Only When Instructed)
-When {SALESPERSON_NAME} explicitly requests expanding the search across all BB pre-owned stock or neighboring Pretoria branches, check:
+When {SALESPERSON_NAME} explicitly requests expanding the search across all regional pre-owned stock or neighboring branches, check:
 - **BB Sinoville**: https://branch1.example.com/used/
 - **BB GWM Montana**: https://branch2.example.com/used/
 - **BB Hatfield Renault**: https://branch3.example.com/used/
@@ -52,7 +67,7 @@ When fetching or downloading listing photos from dealership web pages:
 ## Multi-Image Customer Dispatch Protocol (MANDATORY)
 When tasked with sending vehicle options or vehicle photos to a customer or to {SALESPERSON_NAME}:
 1. **Retrieve / Download Gallery (MANDATORY)**: Run:
-   `PYTHONPATH={INSTALL_DIR}/.local/lib/python3.11/site-packages python3 {INSTALL_DIR}/.gemini/config/skills/bb-used-cars/scripts/fetch_listing_images.py "<listing_url_or_slug>"`
+   `PYTHONPATH=skills/bb-used-cars/scripts python3 skills/bb-used-cars/scripts/fetch_listing_images.py "<listing_url_or_slug>"`
    This retrieves the clean, pre-cached local gallery from `{INSTALL_DIR}/jax-shared/data/inventory/vehicles/<slug>` instantly (< 10ms).
 2. **First Image Caption (MANDATORY)**: The very first image sent MUST have the single-line summary description in its text:
    `[YEAR] [MAKE] [MODEL] [VARIANT] | Mileage: [MILEAGE]KM | from R[PRICE]`
@@ -65,7 +80,7 @@ When tasked with sending vehicle options or vehicle photos to a customer or to {
 ## Multi-Option WhatsApp Proposal Template
 When presenting a list of multiple vehicle options before sending full photo albums:
 
-Good day [Customer Name], this is {SALESPERSON_NAME} from BB {DEALERSHIP_NAME}! 🚗✨
+Good day [Customer Name], this is {SALESPERSON_NAME} from {DEALERSHIP_NAME}! 🚗✨
 
 Here are quality pre-owned options currently available matching what you are looking for:
 

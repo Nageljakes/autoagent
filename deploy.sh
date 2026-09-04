@@ -26,7 +26,7 @@ echo ""
 
 # Ensure user directories and paths
 export PATH="$HOME/.local/bin:$HOME/.local/node/bin:$PATH"
-export PYTHONPATH="$ROOT_DIR/skills/Dealer CRM-portal/scripts:$ROOT_DIR/skills/whatsapp-monitor/scripts:$PYTHONPATH"
+export PYTHONPATH="$ROOT_DIR/skills/autohub-portal/scripts:$ROOT_DIR/skills/whatsapp-monitor/scripts:$PYTHONPATH"
 
 # ------------------------------------------------------------------------------
 # STEP 1: System Dependencies & Environment Setup
@@ -251,11 +251,11 @@ echo -e "${GREEN}✓ Credentials stored securely in ~/.config/dealer_credentials
 
 # Test CRM connection
 echo -e "${BLUE}Testing CRM credentials against portal...${NC}"
-LOGIN_OUT=$(python3 "$ROOT_DIR/skills/Dealer CRM-portal/scripts/portal_login.py" 2>&1 || true)
+LOGIN_OUT=$(python3 "$ROOT_DIR/skills/autohub-portal/scripts/portal_login.py" 2>&1 || true)
 if echo "$LOGIN_OUT" | grep -iq "Session Cookies"; then
     echo -e "${GREEN}✓ SUCCESS: Authenticated successfully with CRM portal!${NC}"
     echo -e "${BLUE}Synchronizing initial diary entries so harness is primed...${NC}"
-    python3 "$ROOT_DIR/skills/Dealer CRM-portal/scripts/populate_all_34_diaries.py" >/dev/null 2>&1 || true
+    python3 "$ROOT_DIR/skills/autohub-portal/scripts/populate_all_34_diaries.py" >/dev/null 2>&1 || true
     echo -e "${GREEN}✓ Diary synchronization initialized.${NC}"
 else
     echo -e "${YELLOW}Warning: Portal test did not confirm session. Please double-check credentials if diaries do not sync.${NC}"

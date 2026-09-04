@@ -555,8 +555,15 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
     else:
         context["clean_phone"] = raw_p
 
-    # Synchronize resolved name to WhatsApp Monitor database
-    if context["clean_phone"] and context["name"]:
+    # Verify if customer is registered on WhatsApp via bridge
+    context["on_whatsapp"] = True
+    if context["clean_phone"]:
+        check_res = query_bridge_api(f"/check-number/{context['clean_phone']}")
+        if check_res.get("success"):
+            context["on_whatsapp"] = bool(check_res.get("exists"))
+
+    # Synchronize resolved name to WhatsApp Monitor database only if on WhatsApp
+    if context.get("on_whatsapp", True) and context["clean_phone"] and context["name"]:
         tag_whatsapp_prospect(context["clean_phone"], context["name"])
 
     # Extract clean first name - strictly banning digits/phone numbers
@@ -865,21 +872,48 @@ def main():
             print("🔍 DRY RUN - Follow-Up Context & Language Analysis:")
             print(f"👤 Customer: {context['name'] or args.name or args.query} ({mask_phone(phone)})")
             print(f"🗣️ Preferred Language: {detected_lang.upper()} (Confidence: {lang_pref['confidence']})")
+            if not context.get("on_whatsapp", True):
+                print(f"⚠️ WhatsApp Registration: Customer is NOT registered on WhatsApp!")
             if lang_pref.get("reasons"):
                 for r in lang_pref["reasons"]:
                     print(f"   • {r}")
             print(f"\n💬 Composed Message:\n\"{final_message}\"")
         return
 
-    # Step 4: Dispatch via WhatsApp Monitor Bridge
+    # Step 4: Validate WhatsApp Registration & Dispatch
+    if not context.get("on_whatsapp", True):
+        cust_name = context["name"] or args.name or args.query
+        print(f"❌ Delivery Aborted: {cust_name} ({mask_phone(phone)}) is NOT registered on WhatsApp!")
+        print(f"🚫 WhatsApp message was NOT sent.")
+        crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+        crm_res = log_to_portal_crm(context["custid"], cust_name, crm_note, days=args.days)
+        output_data["crm"] = crm_res
+        output_data["dispatch"] = {"success": False, "notOnWhatsApp": True, "error": "Recipient phone number is not registered on WhatsApp"}
+        print(f"📅 dealership CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
+        if args.json:
+            print(json.dumps(output_data, indent=2))
+        return
+
     dispatch_res = dispatch_whatsapp_message(phone, final_message)
     output_data["dispatch"] = dispatch_res
 
     if not dispatch_res.get("success"):
-        print(f"❌ WhatsApp Bridge Dispatch Failed: {dispatch_res.get('error')}", file=sys.stderr)
-        if args.json:
-            print(json.dumps(output_data, indent=2))
-        sys.exit(1)
+        if dispatch_res.get("notOnWhatsApp"):
+            cust_name = context["name"] or args.name or args.query
+            print(f"❌ Delivery Aborted: {cust_name} ({mask_phone(phone)}) is NOT registered on WhatsApp!")
+            print(f"🚫 WhatsApp message was NOT sent.")
+            crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+            crm_res = log_to_portal_crm(context["custid"], cust_name, crm_note, days=args.days)
+            output_data["crm"] = crm_res
+            print(f"📅 dealership CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
+            if args.json:
+                print(json.dumps(output_data, indent=2))
+            return
+        else:
+            print(f"❌ WhatsApp Bridge Dispatch Failed: {dispatch_res.get('error')}", file=sys.stderr)
+            if args.json:
+                print(json.dumps(output_data, indent=2))
+            sys.exit(1)
 
     # Step 5: Dual-Log to dealership CRM
     crm_note = f"Sent follow-up WhatsApp ({detected_lang.capitalize()}): {final_message[:90]}..."

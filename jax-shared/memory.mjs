@@ -42,11 +42,11 @@ export function acquireProcessLock(lockName) {
           process.exit(0);
         } catch (e) {
           if (e.code === 'EPERM') {
-            // Process exists but owned by different user — treat as alive, abort
+            // Process exists but owned by different user - treat as alive, abort
             console.error(`❌ [MUTEX LOCK] Another instance of ${lockName} is active (PID: ${existingPid}, EPERM). Aborting.`);
             process.exit(0);
           }
-          // ESRCH = stale lock from dead process — continue
+          // ESRCH = stale lock from dead process - continue
         }
       }
     } catch (e) {}
@@ -334,7 +334,7 @@ export function sanitizeInput(text) {
     cleaned = cleaned.slice(0, MAX_PROMPT_LENGTH);
   }
   
-  // Injection check (for guests only — owner can do anything)
+  // Injection check (for guests only - owner can do anything)
   for (const pattern of INJECTION_PATTERNS) {
     if (pattern.test(cleaned)) {
       return { safe: false, text: cleaned, reason: 'injection_attempt' };
@@ -460,8 +460,8 @@ function cleanStaleSlots() {
             process.kill(data.pid, 0);
             isAlive = true;
           } catch (e) {
-            // EPERM = process exists but owned by different user — treat as alive
-            // ESRCH = process truly dead — treat as dead (isAlive stays false)
+            // EPERM = process exists but owned by different user - treat as alive
+            // ESRCH = process truly dead - treat as dead (isAlive stays false)
             if (e.code === 'EPERM') isAlive = true;
           }
         }
@@ -506,7 +506,7 @@ export async function acquireExecutionSlot(isOwner = false, timeoutMs = 120000) 
         };
         fs.writeFileSync(slotPath, JSON.stringify(slotData), { flag: 'wx' });
         
-        // Successfully acquired slot — capture our PID at acquisition time
+        // Successfully acquired slot - capture our PID at acquisition time
         const acquiredPid = process.pid;
         return () => {
           try {

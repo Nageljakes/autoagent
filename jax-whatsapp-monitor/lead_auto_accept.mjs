@@ -10,7 +10,7 @@ const execAsync = promisify(exec);
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 const LEAD_NOTIFIER_PHONE_SUFFIX = process.env.LEAD_NOTIFIER_PHONE || '';
-const SCRIPT_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills/Dealer CRM-portal/scripts/accept_lead.py');
+const SCRIPT_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills/autohub-portal/scripts/accept_lead.py');
 const PYTHON_PATH = process.env.PYTHONPATH || '';
 
 const VEHICLE_ASSETS = {
@@ -34,18 +34,18 @@ export function getVehicleImagePath(modelName = '') {
   return null;
 }
 
-export function normalizePhone(rawPhone = '') {
-  if (!rawPhone) return '';
-  let clean = rawPhone.replace(/[^0-9]/g, '');
-  if (clean.startsWith('0') && clean.length === 10) {
-    clean = '27' + clean.slice(1);
-  }
-  return clean;
+function sanitizeDashes(text) {
+  if (!text) return '';
+  return text.replace(/[\u2013\u2014]/g, '-');
 }
 
-export function sanitizeDashes(str) {
-  if (!str) return str;
-  return String(str).replace(/[\u2014\u2013\u2015]/g, '-');
+function normalizePhone(p) {
+  if (!p) return '';
+  let cleaned = p.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '27' + cleaned.slice(1);
+  }
+  return cleaned;
 }
 
 let isRunning = false;
@@ -60,11 +60,14 @@ export function isLeadNotification({ senderPhone, pushName, text, isGroup, remot
 
   const cleanSender = (senderPhone || '').replace(/[^0-9]/g, '');
   const isLeadNotifier = cleanSender.endsWith(LEAD_NOTIFIER_PHONE_SUFFIX) || (pushName && /(lead|crm|portal|notifier)/i.test(pushName));
-  const mentionsSalesperson = /\bsalesperson\b/i.test(text) || 
-                        text.includes('827398595') || 
-                        text.includes('847398595') || 
-                        (process.env.OWNER_PHONE_NUMBER && text.includes(`@${process.env.OWNER_PHONE_NUMBER}`)) || 
-                        text.includes('@27820000002');
+  const ownerPhone = (process.env.OWNER_PHONE_NUMBER || '').replace(/[^0-9]/g, '');
+  const ownerSuffix = ownerPhone.length >= 9 ? ownerPhone.slice(-9) : ownerPhone;
+  const salesName = (process.env.SALESPERSON_NAME || '').toLowerCase();
+  const mentionsSalesperson = (salesName && text.toLowerCase().includes(salesName)) ||
+                        (ownerPhone && text.includes(ownerPhone)) ||
+                        (ownerSuffix && text.includes(ownerSuffix)) ||
+                        (process.env.OWNER_PHONE_NUMBER && text.includes(`@${process.env.OWNER_PHONE_NUMBER}`)) ||
+                        /\bsalesperson\b/i.test(text);
   const isLeadNotice = /\blead(s)?\b/i.test(text);
 
   // Match if:
@@ -100,7 +103,7 @@ export async function autoAcceptLeads(triggerContext = {}, sock = null) {
   logger.info({ triggerContext }, '🚀 Auto-accepting leads on Dealer CRM...');
 
   try {
-const ACTION_SCRIPT_PATH = '/home/salesperson/.gemini/config/skills/Dealer CRM-portal/scripts/action_prospect.py';
+    const ACTION_SCRIPT_PATH = process.env.ACTION_SCRIPT_PATH || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills/autohub-portal/scripts/action_prospect.py');
 
     const cmd = `PYTHONPATH=${PYTHON_PATH} python3 ${SCRIPT_PATH} --all --json`;
     const { stdout, stderr } = await execAsync(cmd, { timeout: 45000 });

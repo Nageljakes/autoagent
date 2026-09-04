@@ -73,13 +73,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_prospects_contact_type ON prospects(contact_type);
 `);
 
-// Parse known coworker and creator numbers from environment and constants
-const CREATOR_IDENTIFIERS = new Set([
-  '112700000000000',
-  '27820000001',
-  '27820000002',
-  '81640000000000'
-]);
+// Parse known creator and internal numbers from environment
+const CREATOR_IDENTIFIERS = new Set(
+  (process.env.CREATOR_IDENTIFIERS || process.env.OWNER_PHONE_NUMBER || '')
+    .split(',')
+    .map(s => s.trim().replace(/[^0-9]/g, ''))
+    .filter(Boolean)
+);
 
 export function getKnownCoworkerSet() {
   const envCoworkers = process.env.COWORKER_PHONE_NUMBERS || '';
@@ -185,7 +185,7 @@ export function saveMessage({ id, jid, phoneNumber, fromMe, senderName, messageT
   upsertProspect(jid, cleanPhone, fromMe ? null : senderName);
 
   // upsertProspect may have matched (and updated) a different existing row by
-  // phone_number rather than jid — e.g. a group participant who already has a
+  // phone_number rather than jid - e.g. a group participant who already has a
   // 1:1 prospect record. Re-resolve the actual row here so prospect_jid always
   // references a row that exists, otherwise the FOREIGN KEY insert below fails
   // and the message is silently lost.

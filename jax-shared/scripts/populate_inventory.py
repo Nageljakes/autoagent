@@ -632,6 +632,22 @@ def process_vehicle(v):
     return v
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Populate and sync local pre-owned inventory.")
+    parser.add_argument("--scrape", action="store_true", help="Run live scraper via sync_stock.py")
+    parser.add_argument("--sample", action="store_true", help="Force populate with sample raw listings")
+    args = parser.parse_args()
+
+    if args.scrape or (not args.sample and os.getenv("USE_LIVE_SCRAPER") == "1"):
+        try:
+            print("🚀 Launching dynamic inventory scraper (sync_stock.py)...")
+            import asyncio
+            from sync_stock import run_indexing
+            asyncio.run(run_indexing())
+            return
+        except Exception as e:
+            print(f"⚠️ Live scraper failed or unavailable ({e}). Falling back to sample inventory...")
+
     print(f"📦 Populating stock.json with {len(RAW_LISTINGS)} vehicles...")
     processed_vehicles = []
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -641,10 +657,13 @@ def main():
 
     processed_vehicles.sort(key=lambda x: (x["price_num"] is None, x["price_num"] or 0))
 
+    dealership_1 = os.getenv("DEALERSHIP_NAME", "Main Dealership Branch")
+    dealership_2 = os.getenv("DEALERSHIP_NAME_ALT", "Pre-Owned Branch")
+
     payload = {
         "last_updated": datetime.now().isoformat(),
         "total_vehicles": len(processed_vehicles),
-        "dealerships": ["Main Dealership Branch", "Pre-Owned Branch"],
+        "dealerships": [dealership_1, dealership_2],
         "vehicles": processed_vehicles
     }
 

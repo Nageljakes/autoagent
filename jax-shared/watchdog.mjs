@@ -204,7 +204,7 @@ async function performHealthCheck() {
 // Dead-Letter Watcher
 // ===========================
 // Failed bot messages get written to data/deadletters/ but nothing ever consumed
-// them — they sat there silently forever. Auto-retrying isn't safe here (a message
+// them - they sat there silently forever. Auto-retrying isn't safe here (a message
 // that partially executed a state-changing action before failing could get double-run
 // if blindly replayed), so instead: alert the administrator the moment a new one appears so he can
 // decide whether to resend it himself. Each dead letter is alerted exactly once.
