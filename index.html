@@ -653,6 +653,21 @@
     }
 
     /* Step Card */
+    @keyframes flowNodeAppear {
+      0% {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .prompt-bubble, .step-node, .agent-verdict {
+      animation: flowNodeAppear 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
     .step-node {
       display: grid;
       grid-template-columns: 28px 1fr;
@@ -1067,13 +1082,13 @@
         <!-- Scenario Tabs -->
         <div class="studio-tab-bar">
           <span class="tab-label">Select Workflow:</span>
-          <button class="scenario-tab active" onclick="switchScenario('followup')">
+          <button class="scenario-tab active" data-scenario="followup" onclick="switchScenario(this, 'followup')">
             <span>💬</span> WhatsApp Follow-Up &amp; Diary Move
           </button>
-          <button class="scenario-tab" onclick="switchScenario('stock')">
+          <button class="scenario-tab" data-scenario="stock" onclick="switchScenario(this, 'stock')">
             <span>🔍</span> Sub-10ms Stock Query &amp; Photo Sets
           </button>
-          <button class="scenario-tab" onclick="switchScenario('quote')">
+          <button class="scenario-tab" data-scenario="quote" onclick="switchScenario(this, 'quote')">
             <span>📄</span> Portal Quote Extraction &amp; Dispatch
           </button>
         </div>
@@ -1506,22 +1521,57 @@
       `;
     }
 
-    function switchScenario(key) {
-      document.querySelectorAll('.scenario-tab').forEach(b => b.classList.remove('active'));
-      event.currentTarget.classList.add('active');
+    let activeScenarioTimers = [];
+
+    function switchScenario(btnOrKey, maybeKey) {
+      let key = typeof btnOrKey === 'string' ? btnOrKey : maybeKey;
+      let btn = typeof btnOrKey === 'object' && btnOrKey ? btnOrKey : null;
+
+      if (!key && btn) {
+        key = btn.getAttribute('data-scenario');
+      }
+
+      if (!key) key = 'followup';
+
+      // Update active tab styles
+      document.querySelectorAll('.scenario-tab').forEach(b => {
+        if (b.getAttribute('data-scenario') === key || b === btn) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
 
       const s = scenarios[key];
-      document.getElementById('terminal-live-cmd').innerHTML = `<span>❯</span> ${s.cmd}`;
+      if (!s) return;
 
-      // Render Left Dossier
-      document.getElementById('dossier-pane').innerHTML = renderDossier(s.dossier);
+      // Update command bar
+      const cmdEl = document.getElementById('terminal-live-cmd');
+      if (cmdEl) cmdEl.innerHTML = `<span>❯</span> ${s.cmd}`;
 
-      // Render Right Flow
+      // Transition Dossier Pane with fade
+      const dossierPane = document.getElementById('dossier-pane');
+      if (dossierPane) {
+        dossierPane.style.opacity = '0.3';
+        dossierPane.style.transform = 'translateY(4px)';
+        setTimeout(() => {
+          dossierPane.innerHTML = renderDossier(s.dossier);
+          dossierPane.style.opacity = '1';
+          dossierPane.style.transform = 'translateY(0)';
+        }, 120);
+      }
+
+      // Clear any pending staggered animations
+      activeScenarioTimers.forEach(t => clearTimeout(t));
+      activeScenarioTimers = [];
+
+      // Render Right Flow with crisp staggered animations
       const flow = document.getElementById('execution-flow');
+      if (!flow) return;
       flow.innerHTML = '';
 
       s.steps.forEach((st, idx) => {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           if (st.type === 'prompt') {
             const el = document.createElement('div');
             el.className = 'prompt-bubble';
@@ -1556,52 +1606,23 @@
             `;
             flow.appendChild(el);
           }
-        }, idx * 160);
+        }, idx * 140);
+        activeScenarioTimers.push(timer);
       });
     }
 
-    // Initialize on page load
+    // Attach robust event listeners
     window.addEventListener('DOMContentLoaded', () => {
-      const s = scenarios.followup;
-      document.getElementById('dossier-pane').innerHTML = renderDossier(s.dossier);
-      
-      const flow = document.getElementById('execution-flow');
-      s.steps.forEach((st) => {
-        if (st.type === 'prompt') {
-          const el = document.createElement('div');
-          el.className = 'prompt-bubble';
-          el.innerHTML = `<div class="bubble-meta"><span>👤</span> ${st.meta}</div><div>${st.text}</div>`;
-          flow.appendChild(el);
-        } else if (st.type === 'step') {
-          const el = document.createElement('div');
-          el.className = 'step-node';
-          el.innerHTML = `
-            <div class="step-icon-col">
-              <div class="step-icon-circle">${st.icon}</div>
-              <div class="step-connector"></div>
-            </div>
-            <div class="step-content-card">
-              <div class="step-header-line">
-                <span class="step-title-text">${st.title}</span>
-                <span class="step-duration">${st.duration}</span>
-              </div>
-              <div class="step-detail">${st.desc.replace(/\n/g, '<br>')}</div>
-              ${st.outreach ? `<div class="outreach-preview-box">💬 <b>WhatsApp Sent:</b> ${st.outreach}</div>` : ''}
-            </div>
-          `;
-          flow.appendChild(el);
-        } else if (st.type === 'verdict') {
-          const el = document.createElement('div');
-          el.className = 'agent-verdict';
-          el.innerHTML = `
-            <div class="verdict-header">
-              <span>✓</span> ${st.title}
-            </div>
-            <div>${st.text}</div>
-          `;
-          flow.appendChild(el);
-        }
+      document.querySelectorAll('.scenario-tab').forEach(tab => {
+        tab.addEventListener('click', function(e) {
+          e.preventDefault();
+          const scenarioKey = this.getAttribute('data-scenario');
+          switchScenario(this, scenarioKey);
+        });
       });
+
+      // Initialize with followup scenario
+      switchScenario(null, 'followup');
     });
   </script>
 </body>
