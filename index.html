@@ -16,23 +16,26 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     :root {
       --bg: #030507;
-      --bg-surface: #080c12;
-      --bg-card: rgba(14, 20, 30, 0.65);
-      --bg-card-hover: rgba(20, 28, 42, 0.85);
+      --bg-surface: #070b10;
+      --bg-card: rgba(13, 19, 28, 0.7);
+      --bg-card-hover: rgba(18, 26, 38, 0.9);
       --border: rgba(255, 255, 255, 0.08);
-      --border-bright: rgba(255, 255, 255, 0.18);
-      --text: #f0f4f8;
-      --text-muted: #8e9bb0;
+      --border-bright: rgba(255, 255, 255, 0.16);
+      --border-glow: rgba(16, 185, 129, 0.35);
+      --text: #f1f5f9;
+      --text-muted: #8492a6;
       --primary: #10b981;
-      --primary-glow: rgba(16, 185, 129, 0.25);
+      --primary-glow: rgba(16, 185, 129, 0.22);
       --cyan: #06b6d4;
       --cyan-glow: rgba(6, 182, 212, 0.2);
       --blue: #3b82f6;
+      --amber: #f59e0b;
+      --purple: #8b5cf6;
       --radius: 16px;
       --radius-sm: 8px;
       --font-display: 'Archivo Black', sans-serif;
@@ -61,6 +64,7 @@
       line-height: 1.6;
     }
 
+    /* Ambient Background Effects */
     .bg-grid {
       position: fixed;
       top: 0;
@@ -70,30 +74,30 @@
       background-image: 
         linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-      background-size: 40px 40px;
+      background-size: 44px 44px;
       pointer-events: none;
       z-index: 0;
     }
 
     .bg-glow-1 {
       position: fixed;
-      top: -150px;
-      left: 20%;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-      filter: blur(100px);
+      top: -160px;
+      left: 25%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 65%);
+      filter: blur(120px);
       pointer-events: none;
       z-index: 0;
     }
 
     .bg-glow-2 {
       position: fixed;
-      top: 40%;
+      top: 35%;
       right: -100px;
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%);
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 65%);
       filter: blur(140px);
       pointer-events: none;
       z-index: 0;
@@ -108,6 +112,7 @@
       z-index: 1;
     }
 
+    /* Navigation */
     .nav {
       position: sticky;
       top: 0;
@@ -220,23 +225,21 @@
       transform: translateY(-2px);
     }
 
-    .hero {
-      padding: 90px 0 60px;
-      display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      gap: 60px;
-      align-items: center;
+    /* Hero Section (Stacked, Wide Showcase) */
+    .hero-section {
+      padding: 75px 0 30px;
+      text-align: center;
     }
 
     .badge-pill {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
+      padding: 6px 16px;
       background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(16, 185, 129, 0.25);
       border-radius: 999px;
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       color: var(--primary);
       font-weight: 600;
       margin-bottom: 24px;
@@ -259,10 +262,12 @@
 
     .hero-title {
       font-family: var(--font-display);
-      font-size: 3.2rem;
+      font-size: 3.6rem;
       line-height: 1.1;
       letter-spacing: -0.03em;
       margin-bottom: 20px;
+      max-width: 900px;
+      margin-inline: auto;
     }
 
     .hero-title .highlight {
@@ -272,31 +277,34 @@
     }
 
     .hero-sub {
-      font-size: 1.12rem;
+      font-size: 1.18rem;
       color: var(--text-muted);
       margin-bottom: 32px;
-      max-width: 540px;
+      max-width: 720px;
+      margin-inline: auto;
     }
 
     .hero-cta-group {
       display: flex;
+      justify-content: center;
       flex-wrap: wrap;
       gap: 14px;
       margin-bottom: 36px;
     }
 
+    /* Terminal One-Liner Box */
     .terminal-banner {
-      background: rgba(10, 15, 23, 0.9);
+      background: rgba(11, 17, 26, 0.85);
       border: 1px solid var(--border-bright);
       border-radius: 12px;
       padding: 12px 18px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
       gap: 16px;
       font-family: var(--font-mono);
       font-size: 0.88rem;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      margin: 0 auto 50px;
     }
 
     .terminal-text {
@@ -333,152 +341,424 @@
       border-color: var(--primary);
     }
 
-    .console-card {
+    /* ══════════════════════════════════════════════════
+       WIDESCREEN DEALERSHIP OS STUDIO CONSOLE
+    ══════════════════════════════════════════════════ */
+    .studio-wrapper {
+      margin: 10px auto 70px;
+      max-width: 1140px;
+      text-align: left;
+    }
+
+    .studio-window {
       background: var(--bg-surface);
       border: 1px solid var(--border-bright);
       border-radius: var(--radius);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), 0 0 50px rgba(16, 185, 129, 0.1);
       overflow: hidden;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(16, 185, 129, 0.08);
+      position: relative;
     }
 
-    .console-header {
+    /* Top Window Chrome */
+    .studio-chrome {
       background: rgba(255, 255, 255, 0.03);
       border-bottom: 1px solid var(--border);
-      padding: 14px 18px;
+      padding: 14px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-
-    .console-identity {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .console-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #10b981, #06b6d4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-    }
-
-    .console-name {
-      font-weight: 700;
-      font-size: 0.9rem;
-    }
-
-    .console-badge {
-      font-size: 0.72rem;
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--primary);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-
-    .console-traffic-lights {
-      display: flex;
-      gap: 6px;
-    }
-
-    .traffic-light {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-
-    .traffic-light.red { background: #ef4444; }
-    .traffic-light.yellow { background: #f59e0b; }
-    .traffic-light.green { background: #10b981; }
-
-    .console-body {
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-height: 380px;
-      font-size: 0.88rem;
-    }
-
-    .chat-bubble {
-      max-width: 90%;
-      padding: 12px 16px;
-      border-radius: 12px;
-      line-height: 1.5;
-    }
-
-    .chat-bubble.salesperson {
-      align-self: flex-end;
-      background: #1e3a8a;
-      color: #eff6ff;
-      border-bottom-right-radius: 3px;
-    }
-
-    .chat-bubble.agent {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 3px;
-    }
-
-    .action-step {
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      background: rgba(0, 0, 0, 0.4);
-      border-left: 3px solid var(--cyan);
-      padding: 8px 12px;
-      border-radius: 4px;
-      color: #94a3b8;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .action-step .step-title {
-      color: var(--cyan);
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .console-controls {
-      background: rgba(0, 0, 0, 0.4);
-      border-top: 1px solid var(--border);
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .demo-chips {
-      display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 16px;
     }
 
-    .chip-btn {
-      background: rgba(255, 255, 255, 0.05);
+    .chrome-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .traffic-lights {
+      display: flex;
+      gap: 7px;
+    }
+
+    .tl {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .tl.red { background: #ef4444; }
+    .tl.yellow { background: #f59e0b; }
+    .tl.green { background: #10b981; }
+
+    .window-title {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    .chrome-badges {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.76rem;
+      font-family: var(--font-mono);
+    }
+
+    .c-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: #94a3b8;
+    }
+
+    .c-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .dot-green { background: #10b981; box-shadow: 0 0 8px #10b981; }
+    .dot-cyan { background: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
+    .dot-amber { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+
+    /* Scenario Tabs Bar */
+    .studio-tab-bar {
+      background: rgba(8, 13, 20, 0.95);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+    }
+
+    .tab-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-right: 8px;
+      white-space: nowrap;
+    }
+
+    .scenario-tab {
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       color: var(--text-muted);
-      padding: 5px 12px;
-      border-radius: 20px;
-      font-size: 0.78rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
       transition: all 0.2s;
     }
 
-    .chip-btn:hover, .chip-btn.active {
-      background: rgba(16, 185, 129, 0.2);
-      border-color: var(--primary);
-      color: var(--primary);
+    .scenario-tab:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
     }
 
+    .scenario-tab.active {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Dual Pane Layout */
+    .studio-body {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      min-height: 480px;
+      background: #060a0f;
+    }
+
+    /* Left Dossier Pane */
+    .dossier-pane {
+      background: rgba(10, 15, 22, 0.95);
+      border-right: 1px solid var(--border);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .pane-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
+
+    .prospect-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .prospect-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .prospect-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #1e293b, #334155);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .prospect-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .prospect-name {
+      font-weight: 700;
+      font-size: 0.98rem;
+      color: var(--text);
+    }
+
+    .prospect-stage {
+      font-size: 0.78rem;
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+    }
+
+    .dossier-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      padding: 6px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .dossier-label {
+      color: var(--text-muted);
+    }
+
+    .dossier-val {
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .telemetry-card {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .telemetry-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .telemetry-tag {
+      color: #64748b;
+    }
+
+    .telemetry-stat {
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* Right Console & Workspace Pane */
+    .workspace-pane {
+      display: flex;
+      flex-direction: column;
+      background: #05080c;
+    }
+
+    .terminal-top-bar {
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .terminal-cmd-live {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #38bdf8;
+    }
+
+    .execution-flow {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .prompt-bubble {
+      background: rgba(30, 58, 138, 0.35);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .bubble-meta {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #93c5fd;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Step Card */
+    .step-node {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      position: relative;
+    }
+
+    .step-icon-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-icon-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .step-connector {
+      width: 2px;
+      background: var(--border);
+      flex: 1;
+      margin: 4px 0;
+    }
+
+    .step-content-card {
+      background: rgba(13, 19, 28, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .step-header-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .step-title-text {
+      color: #e2e8f0;
+      font-weight: 600;
+      font-size: 0.86rem;
+    }
+
+    .step-duration {
+      font-size: 0.72rem;
+      color: var(--primary);
+      background: rgba(16, 185, 129, 0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .step-detail {
+      color: #94a3b8;
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+
+    .outreach-preview-box {
+      background: rgba(3, 7, 18, 0.8);
+      border-left: 3px solid #25d366;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 6px;
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      color: #f1f5f9;
+    }
+
+    .agent-verdict {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+    }
+
+    .verdict-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    /* Section Headers */
     .section {
       padding: 90px 0;
       position: relative;
@@ -486,7 +766,7 @@
 
     .section-header {
       text-align: center;
-      max-width: 700px;
+      max-width: 720px;
       margin: 0 auto 60px;
     }
 
@@ -502,17 +782,18 @@
 
     .section-title {
       font-family: var(--font-display);
-      font-size: 2.5rem;
+      font-size: 2.6rem;
       line-height: 1.2;
       letter-spacing: -0.02em;
       margin-bottom: 16px;
     }
 
     .section-desc {
-      font-size: 1.05rem;
+      font-size: 1.08rem;
       color: var(--text-muted);
     }
 
+    /* Pillars Grid */
     .pillars-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -581,6 +862,7 @@
       color: var(--primary);
     }
 
+    /* Workflow Stepper */
     .steps-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -616,6 +898,7 @@
       line-height: 1.5;
     }
 
+    /* Stats Ribbon */
     .stats-ribbon {
       background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%);
       border-top: 1px solid var(--border);
@@ -648,6 +931,7 @@
       font-weight: 500;
     }
 
+    /* Footer */
     .footer {
       border-top: 1px solid var(--border);
       padding: 60px 0 40px;
@@ -685,17 +969,21 @@
       color: #64748b;
     }
 
-    @media (max-width: 900px) {
-      .hero {
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+      .hero-title {
+        font-size: 2.7rem;
+      }
+      .studio-body {
         grid-template-columns: 1fr;
-        padding: 50px 0;
+      }
+      .dossier-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
       }
       .stats-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 30px;
-      }
-      .hero-title {
-        font-size: 2.4rem;
       }
     }
   </style>
@@ -717,9 +1005,9 @@
         </div>
       </a>
       <ul class="nav-links">
+        <li><a href="#console">Studio Console</a></li>
         <li><a href="#pillars">Architecture</a></li>
         <li><a href="#workflow">Onboarding</a></li>
-        <li><a href="#demo">Live Console</a></li>
         <li><a href="https://github.com/Nageljakes/autoagent" target="_blank" rel="noopener">GitHub</a></li>
       </ul>
       <a href="https://github.com/Nageljakes/autoagent" class="btn btn-ghost" target="_blank" rel="noopener">
@@ -728,92 +1016,97 @@
     </div>
   </nav>
 
-  <!-- ══ HERO ══ -->
-  <header class="wrap hero">
-    <div class="hero-content">
-      <div class="badge-pill">
-        <span class="pulse-dot"></span>
-        Autonomous Dealership Operating System
-      </div>
-      <h1 class="hero-title">
-        Sales Companion First.<br>
-        <span class="highlight">Zero Clerical Friction.</span>
-      </h1>
-      <p class="hero-sub">
-        An enterprise automotive CRM automation co-pilot. Keeps customer chats on your personal phone, guarantees zero unauthorized bot replies, dual-logs CRM records, and moves diary follow-ups automatically.
-      </p>
+  <!-- ══ HERO HEADER ══ -->
+  <section class="wrap hero-section">
+    <div class="badge-pill">
+      <span class="pulse-dot"></span>
+      Autonomous Dealership Operating System
+    </div>
+    <h1 class="hero-title">
+      Sales Companion First.<br>
+      <span class="highlight">Zero Clerical Friction.</span>
+    </h1>
+    <p class="hero-sub">
+      An enterprise automotive CRM automation co-pilot. Keeps customer chats anchored to your personal phone, guarantees zero unauthorized bot replies, dual-logs CRM touchpoints, and moves diary follow-ups automatically.
+    </p>
 
-      <div class="hero-cta-group">
-        <a href="#quickstart" class="btn btn-primary">Deploy via One-Liner</a>
-        <a href="https://github.com/Nageljakes/autoagent" class="btn btn-ghost" target="_blank" rel="noopener">Explore Codebase</a>
-      </div>
-
-      <div class="terminal-banner" id="quickstart">
-        <div class="terminal-text">
-          <span class="terminal-prefix">$</span>
-          <span class="terminal-cmd" id="install-cmd">curl -sL https://raw.githubusercontent.com/Nageljakes/autoagent/main/install.sh | bash</span>
-        </div>
-        <button class="copy-btn" onclick="copyInstallCmd()">Copy</button>
-      </div>
+    <div class="hero-cta-group">
+      <a href="#quickstart" class="btn btn-primary">Deploy via One-Liner</a>
+      <a href="https://github.com/Nageljakes/autoagent" class="btn btn-ghost" target="_blank" rel="noopener">Explore Codebase</a>
     </div>
 
-    <!-- ══ HERO LIVE SIMULATOR CONSOLE ══ -->
-    <div class="console-card" id="demo">
-      <div class="console-header">
-        <div class="console-identity">
-          <div class="console-avatar">🤖</div>
-          <span class="console-name">Agent Co-Pilot</span>
-          <span class="console-badge">RESTRICT_TO_OWNER = true</span>
-        </div>
-        <div class="console-traffic-lights">
-          <span class="traffic-light red"></span>
-          <span class="traffic-light yellow"></span>
-          <span class="traffic-light green"></span>
-        </div>
+    <div class="terminal-banner" id="quickstart">
+      <div class="terminal-text">
+        <span class="terminal-prefix">$</span>
+        <span class="terminal-cmd" id="install-cmd">curl -sL https://raw.githubusercontent.com/Nageljakes/autoagent/main/install.sh | bash</span>
       </div>
+      <button class="copy-btn" onclick="copyInstallCmd()">Copy</button>
+    </div>
 
-      <div class="console-body" id="console-feed">
-        <div class="chat-bubble salesperson">
-          Follow up with Sipho about the SUV test drive he asked about yesterday.
+    <!-- ══ WIDESCREEN COMMAND STUDIO DISPLAY ══ -->
+    <div class="studio-wrapper" id="console">
+      <div class="studio-window">
+        
+        <!-- Studio Chrome -->
+        <div class="studio-chrome">
+          <div class="chrome-left">
+            <div class="traffic-lights">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+            </div>
+            <span class="window-title">autoagent-studio · Dealership OS v2.4 (Active Session)</span>
+          </div>
+          <div class="chrome-badges">
+            <span class="c-badge"><span class="dot dot-green"></span> Companion Bridge (Port 9095)</span>
+            <span class="c-badge"><span class="dot dot-cyan"></span> Inventory (< 10ms)</span>
+            <span class="c-badge"><span class="dot dot-amber"></span> RESTRICT_TO_OWNER = true</span>
+          </div>
         </div>
 
-        <div class="action-step">
-          <span class="step-title">⚡ Cultural Language Guard</span>
-          <span>Detected African Cultural Name ("Sipho"). Strictly enforcing English business dialogue.</span>
+        <!-- Scenario Tabs -->
+        <div class="studio-tab-bar">
+          <span class="tab-label">Select Workflow:</span>
+          <button class="scenario-tab active" onclick="switchScenario('followup')">
+            <span>💬</span> WhatsApp Follow-Up &amp; Diary Move
+          </button>
+          <button class="scenario-tab" onclick="switchScenario('stock')">
+            <span>🔍</span> Sub-10ms Stock Query &amp; Photo Sets
+          </button>
+          <button class="scenario-tab" onclick="switchScenario('quote')">
+            <span>📄</span> Portal Quote Extraction &amp; Dispatch
+          </button>
         </div>
 
-        <div class="action-step">
-          <span class="step-title">🔍 Local Pre-Owned Inventory Cache</span>
-          <span>Indexed SUV matched: 2024 Luxury Crossover (Stock #7821) @ R389,900.</span>
+        <!-- Dual Pane Studio Body -->
+        <div class="studio-body">
+          
+          <!-- Left Pane: Dossier -->
+          <div class="dossier-pane" id="dossier-pane">
+            <!-- Dynamically populated via JS -->
+          </div>
+
+          <!-- Right Pane: Execution Flow -->
+          <div class="workspace-pane">
+            <div class="terminal-top-bar">
+              <div class="terminal-cmd-live" id="terminal-live-cmd">
+                <span>❯</span> agy exec --skill=whatsapp-monitor --action=action_followup
+              </div>
+              <span style="color: #64748b; font-size: 0.74rem;">Execution Sandbox: Safe</span>
+            </div>
+
+            <div class="execution-flow" id="execution-flow">
+              <!-- Dynamically populated via JS -->
+            </div>
+          </div>
+
         </div>
 
-        <div class="action-step">
-          <span class="step-title">📤 Dispatched via Companion Device</span>
-          <span>"Hi Sipho, Jakes here from the dealership. Just doing a quick check-in to see how your schedule looks for that SUV test drive today?"</span>
-        </div>
-
-        <div class="action-step">
-          <span class="step-title">📑 Dual-Logging Engine</span>
-          <span>Stamping ERA touchpoint record & moving diary follow-up +1 day.</span>
-        </div>
-
-        <div class="chat-bubble agent">
-          Follow-up sent to Sipho directly from your sales number! Touchpoint permanently recorded in CRM and diary moved to tomorrow.
-        </div>
-      </div>
-
-      <div class="console-controls">
-        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">SIMULATE LIVE WORKFLOWS:</span>
-        <div class="demo-chips">
-          <button class="chip-btn active" onclick="loadScenario('followup')">WhatsApp Follow-Up</button>
-          <button class="chip-btn" onclick="loadScenario('stock')">Sub-10ms Stock Query</button>
-          <button class="chip-btn" onclick="loadScenario('quote')">Quote PDF Dispatch</button>
-        </div>
       </div>
     </div>
-  </header>
+  </section>
 
-  <!-- ══ STATS ══ -->
+  <!-- ══ STATS RIBBON ══ -->
   <section class="stats-ribbon">
     <div class="wrap stats-grid">
       <div class="stat-item">
@@ -869,7 +1162,7 @@
           <ul class="pillar-list">
             <li><span>✓</span> Automated ColdFusion portal interaction</li>
             <li><span>✓</span> Permanent ERA audit trail preservation</li>
-            <li><span>✓</span> Deal heat scoring based on touchpoints & quotes</li>
+            <li><span>✓</span> Deal heat scoring based on touchpoints &amp; quotes</li>
           </ul>
         </div>
 
@@ -993,53 +1286,323 @@
     }
 
     const scenarios = {
-      followup: [
-        { type: 'salesperson', text: 'Follow up with Sipho about the SUV test drive he asked about yesterday.' },
-        { type: 'step', title: '⚡ Cultural Language Guard', text: 'Detected African Cultural Name ("Sipho"). Strictly enforcing English business dialogue.' },
-        { type: 'step', title: '🔍 Local Pre-Owned Inventory Cache', text: 'Indexed SUV matched: 2024 Luxury Crossover (Stock #7821) @ R389,900.' },
-        { type: 'step', title: '📤 Dispatched via Companion Device', text: '"Hi Sipho, Jakes here from the dealership. Just doing a quick check-in to see how your schedule looks for that SUV test drive today?"' },
-        { type: 'step', title: '📑 Dual-Logging Engine', text: 'Stamping ERA touchpoint record & moving diary follow-up +1 day.' },
-        { type: 'agent', text: 'Follow-up sent to Sipho directly from your sales number! Touchpoint permanently recorded in CRM and diary moved to tomorrow.' }
-      ],
-      stock: [
-        { type: 'salesperson', text: 'Find automatic petrol cars under R250k across our branches.' },
-        { type: 'step', title: '⚡ Sub-10ms Stock Query', text: 'Scanning /jax-shared/data/inventory/stock.json (62 vehicles in 4.2ms).' },
-        { type: 'step', title: '🎯 Matches Located', text: '3 vehicles found: 2023 Hatchback (R219k), 2022 Crossover (R239k), 2021 Sedan (R245k).' },
-        { type: 'agent', text: 'Found 3 matching options under R250,000 in local stock. Would you like me to prepare formatted image galleries to share with your customer?' }
-      ],
-      quote: [
-        { type: 'salesperson', text: 'Download and send the latest quote PDF for customer Corne Botha.' },
-        { type: 'step', title: '🔐 CRM Session Authenticated', text: 'Accessing portal quote frame via CFID/CFTOKEN session.' },
-        { type: 'step', title: '📄 PDF Extracted', text: 'Saved to data/quotes/Corne_Botha_Quote_2026.pdf (142 KB).' },
-        { type: 'step', title: '📤 Dispatched via WhatsApp', text: '[SEND_DOCUMENT: data/quotes/Corne_Botha_Quote_2026.pdf]' },
-        { type: 'agent', text: 'Corne Botha\'s official quote PDF has been downloaded and delivered via your companion WhatsApp.' }
-      ]
+      followup: {
+        cmd: 'agy exec --skill=whatsapp-monitor --action=action_followup --query="Sipho Khumalo"',
+        dossier: {
+          avatar: '👤',
+          name: 'Sipho Khumalo',
+          stage: '🔥 Hot Lead (Score: 88/100)',
+          vehicle: '2024 Luxury Crossover 1.5T',
+          price: 'R389,900',
+          diaryStatus: 'Overdue (Due Today)',
+          bridge: 'Companion Connected (Real Phone)',
+          telemetry: [
+            { label: 'Language Protocol', val: 'African Cultural Guard (Strict English)' },
+            { label: 'Inventory Cache', val: 'Stock #7821 (Verified)' },
+            { label: 'CRM Sync Status', val: 'Dual-Log Ready' },
+            { label: 'Auto-Reply Guard', val: 'Blocked (Companion Only)' }
+          ]
+        },
+        steps: [
+          {
+            type: 'prompt',
+            meta: 'SALESPERSON DIRECTIVE (Internal WhatsApp)',
+            text: 'Follow up with Sipho about the crossover test drive he asked about yesterday.'
+          },
+          {
+            type: 'step',
+            icon: '🛡️',
+            title: 'STEP 1: Cultural Language Decision Guard',
+            duration: '0.8ms',
+            desc: 'Indigenous African name detected ("Sipho"). Afrikaans strictly prohibited by cultural safety protocol. Locking outbound communication to South African business English.'
+          },
+          {
+            type: 'step',
+            icon: '⚡',
+            title: 'STEP 2: Local Pre-Owned Inventory Scanner',
+            duration: '3.4ms',
+            desc: 'Queried local stock.json cache. Matched vehicle #7821 (2024 Crossover 1.5T LE, 18,200km @ R389,900). Listing verified active on showroom floor.'
+          },
+          {
+            type: 'step',
+            icon: '📤',
+            title: 'STEP 3: Outbound WhatsApp Dispatch (From Your Real Phone)',
+            duration: '210ms',
+            desc: 'Synthesized concise 1-sentence outreach enforcing Salesperson persona and zero long dashes. Dispatched via POST 127.0.0.1:9095/send bridge:',
+            outreach: '"Hi Sipho, Jakes here from the dealership. Just doing a quick check-in to see how your schedule looks for that crossover test drive today?"'
+          },
+          {
+            type: 'step',
+            icon: '📑',
+            title: 'STEP 4: CRM Dual-Logging Engine Execution',
+            duration: '640ms',
+            desc: '1. Rescheduled diary followup to tomorrow via followup3.cfm\n2. Stamped permanent touchpoint note directly into master customer record via customer_sa.cfc.'
+          },
+          {
+            type: 'verdict',
+            title: 'CO-PILOT WORKFLOW COMPLETED',
+            text: 'Follow-up delivered to Sipho from your personal WhatsApp companion number. CRM diary moved to tomorrow and permanent audit note stamped.'
+          }
+        ]
+      },
+
+      stock: {
+        cmd: 'agy exec --skill=bb-used-cars --action=search_stock --max-price=250000 --trans=auto',
+        dossier: {
+          avatar: '🚗',
+          name: 'Multi-Branch Inventory Scanner',
+          stage: '⚡ Sub-10ms Local Index',
+          vehicle: 'Automatic Petrol < R250k',
+          price: 'Max R250,000',
+          diaryStatus: '62 Live Showroom Units',
+          bridge: 'Local JSON Cache (<10ms)',
+          telemetry: [
+            { label: 'Query Latency', val: '4.1ms (In-Memory)' },
+            { label: 'Branches Scanned', val: 'Main + Pre-Owned' },
+            { label: 'Photo Galleries', val: 'Pre-Cached on Disk' },
+            { label: 'Cron Sync Interval', val: 'Daily @ 02:00 AM' }
+          ]
+        },
+        steps: [
+          {
+            type: 'prompt',
+            meta: 'SALESPERSON DIRECTIVE (Internal WhatsApp)',
+            text: 'Find automatic petrol cars under R250k across our branches.'
+          },
+          {
+            type: 'step',
+            icon: '⚡',
+            title: 'STEP 1: Rapid In-Memory Index Lookup',
+            duration: '4.1ms',
+            desc: 'Executed python3 search_stock.py --max-price 250000 against /data/inventory/stock.json. Scanned 62 vehicles across branches.'
+          },
+          {
+            type: 'step',
+            icon: '🎯',
+            title: 'STEP 2: Filtered Inventory Matches',
+            duration: '1.2ms',
+            desc: 'Located 3 prime showroom matches meeting exact criteria:\n• 2023 Hatchback 1.2 AT (28,000 km) @ R219,900\n• 2022 Crossover 1.0T CVT (39,400 km) @ R239,900\n• 2021 Sedan 1.5 AT (45,100 km) @ R245,000'
+          },
+          {
+            type: 'step',
+            icon: '🖼️',
+            title: 'STEP 3: Photo Gallery Preparation',
+            duration: '18ms',
+            desc: 'Local vehicle galleries verified on disk (/data/inventory/vehicles/<slug>/). High-res photo packs ready for instant multi-image WhatsApp dispatch.'
+          },
+          {
+            type: 'verdict',
+            title: 'INVENTORY SEARCH COMPLETE',
+            text: 'Found 3 vehicles under R250,000. Would you like me to prepare formatted vehicle cards with download links or send the high-res gallery to your customer?'
+          }
+        ]
+      },
+
+      quote: {
+        cmd: 'agy exec --skill=autohub-portal --action=download_quote --name="Corne Botha"',
+        dossier: {
+          avatar: '👤',
+          name: 'Corne Botha',
+          stage: '📑 OTP / Finance Pending',
+          vehicle: '2026 Compact SUV 1.0 Visia',
+          price: 'R284,900 (Finance Quote)',
+          diaryStatus: 'Action Required',
+          bridge: 'Companion Connected',
+          telemetry: [
+            { label: 'Portal Session', val: 'Authenticated (Active)' },
+            { label: 'Language Standard', val: 'Afrikaans (Native)' },
+            { label: 'Quote Format', val: 'Official PDF (142 KB)' },
+            { label: 'Dispatch Channel', val: 'Sales Companion WA' }
+          ]
+        },
+        steps: [
+          {
+            type: 'prompt',
+            meta: 'SALESPERSON DIRECTIVE (Internal WhatsApp)',
+            text: 'Download and send the latest quote PDF for customer Corne Botha.'
+          },
+          {
+            type: 'step',
+            icon: '🔐',
+            title: 'STEP 1: Authenticated Dealer Portal Extraction',
+            duration: '480ms',
+            desc: 'Retrieved active ColdFusion session cookies. Navigated to customerera_selecttemplate.cfm?custid=18492 to access official quote frame.'
+          },
+          {
+            type: 'step',
+            icon: '📄',
+            title: 'STEP 2: Headless PDF Compilation & Storage',
+            duration: '310ms',
+            desc: 'Downloaded clean quote document: /data/quotes/Corne_Botha_Quote_2026.pdf (142 KB). Validated checksum and header.'
+          },
+          {
+            type: 'step',
+            icon: '📤',
+            title: 'STEP 3: Document Dispatch to Companion WhatsApp',
+            duration: '190ms',
+            desc: 'Dispatched directly via companion bridge with real file payload:\n[SEND_DOCUMENT: /data/quotes/Corne_Botha_Quote_2026.pdf]'
+          },
+          {
+            type: 'verdict',
+            title: 'OFFICIAL DOCUMENT DELIVERED',
+            text: 'Corne Botha's quote PDF has been extracted from the dealer portal and delivered to his WhatsApp directly from your sales number.'
+          }
+        ]
+      }
     };
 
-    function loadScenario(key) {
-      document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+    function renderDossier(dossier) {
+      let rows = `
+        <div class="dossier-row">
+          <span class="dossier-label">Vehicle</span>
+          <span class="dossier-val">${dossier.vehicle}</span>
+        </div>
+        <div class="dossier-row">
+          <span class="dossier-label">Price</span>
+          <span class="dossier-val">${dossier.price}</span>
+        </div>
+        <div class="dossier-row">
+          <span class="dossier-label">Diary Follow-Up</span>
+          <span class="dossier-val" style="color: #f59e0b;">${dossier.diaryStatus}</span>
+        </div>
+        <div class="dossier-row">
+          <span class="dossier-label">WhatsApp Path</span>
+          <span class="dossier-val" style="color: #10b981;">${dossier.bridge}</span>
+        </div>
+      `;
 
-      const feed = document.getElementById('console-feed');
-      feed.innerHTML = '';
+      let telemetryRows = dossier.telemetry.map(t => `
+        <div class="telemetry-item">
+          <span class="telemetry-tag">${t.label}</span>
+          <span class="telemetry-stat">${t.val}</span>
+        </div>
+      `).join('');
 
-      const items = scenarios[key];
-      items.forEach((item, index) => {
+      return `
+        <div class="pane-section-header">
+          <span>Active Deal Dossier</span>
+          <span style="color: #10b981;">Live Sync</span>
+        </div>
+
+        <div class="prospect-card">
+          <div class="prospect-head">
+            <div class="prospect-avatar">${dossier.avatar}</div>
+            <div class="prospect-info">
+              <span class="prospect-name">${dossier.name}</span>
+              <span class="prospect-stage">${dossier.stage}</span>
+            </div>
+          </div>
+          ${rows}
+        </div>
+
+        <div class="pane-section-header">
+          <span>Telemetry &amp; Guardrails</span>
+          <span style="color: #06b6d4;">Active</span>
+        </div>
+
+        <div class="telemetry-card">
+          ${telemetryRows}
+        </div>
+      `;
+    }
+
+    function switchScenario(key) {
+      document.querySelectorAll('.scenario-tab').forEach(b => b.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      const s = scenarios[key];
+      document.getElementById('terminal-live-cmd').innerHTML = `<span>❯</span> ${s.cmd}`;
+
+      // Render Left Dossier
+      document.getElementById('dossier-pane').innerHTML = renderDossier(s.dossier);
+
+      // Render Right Flow
+      const flow = document.getElementById('execution-flow');
+      flow.innerHTML = '';
+
+      s.steps.forEach((st, idx) => {
         setTimeout(() => {
-          if (item.type === 'step') {
-            const step = document.createElement('div');
-            step.className = 'action-step';
-            step.innerHTML = `<span class="step-title">${item.title}</span><span>${item.text}</span>`;
-            feed.appendChild(step);
-          } else {
-            const bubble = document.createElement('div');
-            bubble.className = `chat-bubble ${item.type}`;
-            bubble.innerText = item.text;
-            feed.appendChild(bubble);
+          if (st.type === 'prompt') {
+            const el = document.createElement('div');
+            el.className = 'prompt-bubble';
+            el.innerHTML = `<div class="bubble-meta"><span>👤</span> ${st.meta}</div><div>${st.text}</div>`;
+            flow.appendChild(el);
+          } else if (st.type === 'step') {
+            const el = document.createElement('div');
+            el.className = 'step-node';
+            el.innerHTML = `
+              <div class="step-icon-col">
+                <div class="step-icon-circle">${st.icon}</div>
+                <div class="step-connector"></div>
+              </div>
+              <div class="step-content-card">
+                <div class="step-header-line">
+                  <span class="step-title-text">${st.title}</span>
+                  <span class="step-duration">${st.duration}</span>
+                </div>
+                <div class="step-detail">${st.desc.replace(/\n/g, '<br>')}</div>
+                ${st.outreach ? `<div class="outreach-preview-box">💬 <b>WhatsApp Sent:</b> ${st.outreach}</div>` : ''}
+              </div>
+            `;
+            flow.appendChild(el);
+          } else if (st.type === 'verdict') {
+            const el = document.createElement('div');
+            el.className = 'agent-verdict';
+            el.innerHTML = `
+              <div class="verdict-header">
+                <span>✓</span> ${st.title}
+              </div>
+              <div>${st.text}</div>
+            `;
+            flow.appendChild(el);
           }
-        }, index * 180);
+        }, idx * 160);
       });
     }
+
+    // Initialize on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      const s = scenarios.followup;
+      document.getElementById('dossier-pane').innerHTML = renderDossier(s.dossier);
+      
+      const flow = document.getElementById('execution-flow');
+      s.steps.forEach((st) => {
+        if (st.type === 'prompt') {
+          const el = document.createElement('div');
+          el.className = 'prompt-bubble';
+          el.innerHTML = `<div class="bubble-meta"><span>👤</span> ${st.meta}</div><div>${st.text}</div>`;
+          flow.appendChild(el);
+        } else if (st.type === 'step') {
+          const el = document.createElement('div');
+          el.className = 'step-node';
+          el.innerHTML = `
+            <div class="step-icon-col">
+              <div class="step-icon-circle">${st.icon}</div>
+              <div class="step-connector"></div>
+            </div>
+            <div class="step-content-card">
+              <div class="step-header-line">
+                <span class="step-title-text">${st.title}</span>
+                <span class="step-duration">${st.duration}</span>
+              </div>
+              <div class="step-detail">${st.desc.replace(/\n/g, '<br>')}</div>
+              ${st.outreach ? `<div class="outreach-preview-box">💬 <b>WhatsApp Sent:</b> ${st.outreach}</div>` : ''}
+            </div>
+          `;
+          flow.appendChild(el);
+        } else if (st.type === 'verdict') {
+          const el = document.createElement('div');
+          el.className = 'agent-verdict';
+          el.innerHTML = `
+            <div class="verdict-header">
+              <span>✓</span> ${st.title}
+            </div>
+            <div>${st.text}</div>
+          `;
+          flow.appendChild(el);
+        }
+      });
+    });
   </script>
 </body>
 </html>
