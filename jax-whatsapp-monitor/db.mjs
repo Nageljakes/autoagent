@@ -1,0 +1,457 @@
+import { DatabaseSync } from 'node:sqlite';
+import path from 'path';
+import fs from 'fs';
+
+const DB_PATH = process.env.SQLITE_DB_PATH || path.resolve('./data/prospects.db');
+
+// Ensure directory exists
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+export const db = new DatabaseSync(DB_PATH);
+
+// Optimize SQLite for concurrent reads and writes (WAL Mode)
+db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA synchronous = NORMAL;');
+db.exec('PRAGMA foreign_keys = ON;');
+
+// Initialize tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prospects (
+    jid TEXT PRIMARY KEY,
+    phone_number TEXT UNIQUE,
+    name TEXT,
+    contact_type TEXT DEFAULT 'prospect', -- 'prospect', 'coworker', 'internal_team', 'personal', 'vip'
+    tags TEXT,                            -- comma-separated tags or JSON
+    notes TEXT,
+    first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_interaction_at DATETIME,
+    message_count INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    prospect_jid TEXT,
+    phone_number TEXT,
+    from_me INTEGER NOT NULL, -- 0: Contact, 1: Us (Human/Explicit)
+    sender_name TEXT,
+    message_type TEXT,        -- text, image, document, audio, video, etc.
+    content TEXT,             -- Text content or caption
+    media_url TEXT,
+    timestamp INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(prospect_jid) REFERENCES prospects(jid)
+  );
+
+  CREATE TABLE IF NOT EXISTS explicit_send_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prospect_phone TEXT,
+    content TEXT,
+    authorized_by TEXT,       -- e.g. 'owner_instruction', 'agent_explicit_command'
+    status TEXT,              -- 'SENT', 'FAILED'
+    msg_id TEXT,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Migration for existing table columns
+try {
+  db.exec("ALTER TABLE prospects ADD COLUMN contact_type TEXT DEFAULT 'prospect';");
+} catch (e) {}
+try {
+  db.exec("ALTER TABLE prospects ADD COLUMN tags TEXT;");
+} catch (e) {}
+
+// Create indexes
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_messages_phone_time ON messages(phone_number, timestamp DESC);
+  CREATE INDEX IF NOT EXISTS idx_messages_jid_time ON messages(prospect_jid, timestamp DESC);
+  CREATE INDEX IF NOT EXISTS idx_prospects_last_interaction ON prospects(last_interaction_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_prospects_contact_type ON prospects(contact_type);
+`);
+
+// Parse known coworker and creator numbers from environment and constants
+const CREATOR_IDENTIFIERS = new Set([
+  '112700000000000',
+  '27820000001',
+  '27820000002',
+  '81640000000000'
+]);
+
+export function getKnownCoworkerSet() {
+  const envCoworkers = process.env.COWORKER_PHONE_NUMBERS || '';
+  const set = new Set();
+  for (const num of envCoworkers.split(',')) {
+    const clean = num.replace(/[^0-9]/g, '');
+    if (clean) set.add(clean);
+  }
+  return set;
+}
+
+/**
+ * Upsert a contact/prospect record with classification
+ */
+export function upsertProspect(jid, phoneNumber, name, contactType = null, tags = null) {
+  const cleanPhone = phoneNumber ? phoneNumber.replace(/[^0-9]/g, '') : (jid ? jid.replace(/[^0-9]/g, '') : null);
+  const coworkerSet = getKnownCoworkerSet();
+  
+  // Auto-detect creator/VIP and coworkers
+  const isCreator = cleanPhone && CREATOR_IDENTIFIERS.has(cleanPhone);
+  const isEnvCoworker = cleanPhone && coworkerSet.has(cleanPhone);
+  const resolvedType = contactType || (isCreator ? 'vip' : (isEnvCoworker ? 'coworker' : null));
+  const resolvedTags = tags || (isCreator ? 'creator,owner' : null);
+
+  try {
+    const existing = db.prepare(`SELECT jid, phone_number, name, contact_type, tags, message_count FROM prospects WHERE jid = ? OR (phone_number IS NOT NULL AND phone_number != '' AND phone_number = ?)`).get(jid, cleanPhone || '');
+
+    if (existing) {
+      const updatedType = resolvedType || existing.contact_type;
+      const updatedTags = tags || existing.tags;
+      const updatedName = name || existing.name;
+      const updatedPhone = cleanPhone || existing.phone_number;
+      
+      db.prepare(`
+        UPDATE prospects SET
+          last_interaction_at = datetime('now'),
+          phone_number = ?,
+          name = ?,
+          contact_type = ?,
+          tags = ?,
+          message_count = message_count + 1
+        WHERE jid = ?
+      `).run(updatedPhone, updatedName, updatedType, updatedTags, existing.jid);
+    } else {
+      db.prepare(`
+        INSERT INTO prospects (jid, phone_number, name, contact_type, tags, last_interaction_at, message_count)
+        VALUES (?, ?, ?, COALESCE(?, 'prospect'), ?, datetime('now'), 1)
+      `).run(jid, cleanPhone, name || null, resolvedType, tags || null);
+    }
+  } catch (err) {
+    // Fallback update to prevent any unhandled constraint errors
+    try {
+      db.prepare("UPDATE prospects SET last_interaction_at = datetime('now'), message_count = message_count + 1 WHERE phone_number = ? OR jid = ?").run(cleanPhone || '', jid);
+    } catch (e) {}
+  }
+}
+
+/**
+ * Explicitly tag or categorize a contact (e.g. coworker, prospect, VIP)
+ */
+export function tagContact(phoneOrJid, { contactType, tags, notes, name } = {}) {
+  const cleanPhone = phoneOrJid.replace(/[^0-9]/g, '');
+  const jid = phoneOrJid.includes('@') ? phoneOrJid : `${cleanPhone}@s.whatsapp.net`;
+
+  upsertProspect(jid, cleanPhone, name, contactType, tags);
+
+  const updates = [];
+  const params = [];
+
+  if (contactType !== undefined) {
+    updates.push("contact_type = ?");
+    params.push(contactType);
+  }
+  if (tags !== undefined) {
+    updates.push("tags = ?");
+    params.push(tags);
+  }
+  if (notes !== undefined) {
+    updates.push("notes = ?");
+    params.push(notes);
+  }
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name);
+  }
+
+  if (updates.length > 0) {
+    params.push(cleanPhone, jid);
+    const sql = `UPDATE prospects SET ${updates.join(', ')} WHERE phone_number = ? OR jid = ?`;
+    db.prepare(sql).run(...params);
+  }
+
+  return db.prepare("SELECT * FROM prospects WHERE phone_number = ? OR jid = ?").get(cleanPhone, jid);
+}
+
+/**
+ * Save an incoming or outgoing message
+ */
+export function saveMessage({ id, jid, phoneNumber, fromMe, senderName, messageType, content, mediaUrl, timestamp }) {
+  const cleanPhone = phoneNumber ? phoneNumber.replace(/[^0-9]/g, '') : (jid ? jid.replace(/[^0-9]/g, '') : null);
+
+  // Ensure contact exists first
+  upsertProspect(jid, cleanPhone, fromMe ? null : senderName);
+
+  // upsertProspect may have matched (and updated) a different existing row by
+  // phone_number rather than jid — e.g. a group participant who already has a
+  // 1:1 prospect record. Re-resolve the actual row here so prospect_jid always
+  // references a row that exists, otherwise the FOREIGN KEY insert below fails
+  // and the message is silently lost.
+  const prospectRow = db.prepare(
+    `SELECT jid FROM prospects WHERE jid = ? OR (phone_number IS NOT NULL AND phone_number != '' AND phone_number = ?)`
+  ).get(jid, cleanPhone || '');
+  const resolvedJid = prospectRow ? prospectRow.jid : jid;
+
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO messages (
+      id, prospect_jid, phone_number, from_me, sender_name, message_type, content, media_url, timestamp
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?, ?, ?, ?
+    )
+  `);
+
+  return stmt.run(
+    id,
+    resolvedJid,
+    cleanPhone,
+    fromMe ? 1 : 0,
+    senderName || (fromMe ? 'You / Agent' : 'Contact'),
+    messageType || 'text',
+    content || '',
+    mediaUrl || null,
+    timestamp || Math.floor(Date.now() / 1000)
+  );
+}
+
+/**
+ * Get conversation history for a prospect/coworker by phone number, JID, LID, or Name
+ */
+export function getProspectHistory(phoneOrQuery, limit = 50, offset = 0) {
+  if (!phoneOrQuery) {
+    return { contact: null, messages: [], count: 0 };
+  }
+
+  const queryStr = String(phoneOrQuery).trim();
+  const isDigitsOnly = /^[0-9+ \-]+$/.test(queryStr);
+  const cleanDigits = queryStr.replace(/[^0-9]/g, '');
+
+  const matchingJids = new Set();
+  const matchingPhones = new Set();
+  let primaryContact = null;
+  const matchedContacts = [];
+
+  if (isDigitsOnly && cleanDigits.length >= 7) {
+    // Generate South African phone variants (e.g. 072... vs 2772...)
+    const variants = [cleanDigits];
+    if (cleanDigits.startsWith('0') && cleanDigits.length === 10) {
+      variants.push('27' + cleanDigits.slice(1));
+    } else if (cleanDigits.startsWith('27') && cleanDigits.length === 11) {
+      variants.push('0' + cleanDigits.slice(2));
+    }
+
+    for (const v of variants) {
+      matchingPhones.add(v);
+      matchingJids.add(`${v}@s.whatsapp.net`);
+    }
+
+    // Look up existing prospects matching any phone variant
+    const placeholders = variants.map(() => '?').join(',');
+    const found = db.prepare(`
+      SELECT * FROM prospects 
+      WHERE phone_number IN (${placeholders}) 
+         OR jid IN (${placeholders})
+    `).all(...variants, ...variants);
+
+    for (const row of found) {
+      if (!primaryContact) primaryContact = row;
+      matchedContacts.push(row);
+      if (row.jid) matchingJids.add(row.jid);
+      if (row.phone_number) matchingPhones.add(row.phone_number);
+
+      // If this contact has a name, also search for any linked LIDs or records with matching name
+      if (row.name && row.name.length >= 3 && !['Contact', 'You / Agent'].includes(row.name)) {
+        const nameMatches = db.prepare(`
+          SELECT * FROM prospects 
+          WHERE (name LIKE ? OR notes LIKE ? OR tags LIKE ?)
+            AND contact_type = 'prospect'
+        `).all(`%${row.name}%`, `%${row.name}%`, `%${row.name}%`);
+
+        for (const nm of nameMatches) {
+          if (nm.jid) matchingJids.add(nm.jid);
+          if (nm.phone_number) matchingPhones.add(nm.phone_number);
+          matchedContacts.push(nm);
+        }
+      }
+    }
+  } else {
+    // Search by Name, JID, or LID
+    if (queryStr.includes('@')) {
+      matchingJids.add(queryStr);
+      if (cleanDigits) matchingPhones.add(cleanDigits);
+    }
+
+    const found = db.prepare(`
+      SELECT * FROM prospects 
+      WHERE name LIKE ? 
+         OR tags LIKE ? 
+         OR notes LIKE ? 
+         OR jid = ? 
+         OR phone_number = ?
+    `).all(`%${queryStr}%`, `%${queryStr}%`, `%${queryStr}%`, queryStr, cleanDigits || queryStr);
+
+    for (const row of found) {
+      if (!primaryContact) primaryContact = row;
+      matchedContacts.push(row);
+      if (row.jid) matchingJids.add(row.jid);
+      if (row.phone_number) matchingPhones.add(row.phone_number);
+
+      // If matched row has a linked phone in tags (e.g. lid_link:27820000003)
+      if (row.tags && row.tags.includes('lid_link:')) {
+        const m = row.tags.match(/lid_link:(\d+)/);
+        if (m) {
+          matchingPhones.add(m[1]);
+          matchingJids.add(`${m[1]}@s.whatsapp.net`);
+        }
+      }
+    }
+  }
+
+  // Fallback if no contact record exists yet
+  if (matchingJids.size === 0) {
+    if (cleanDigits) {
+      matchingPhones.add(cleanDigits);
+      matchingJids.add(queryStr.includes('@') ? queryStr : `${cleanDigits}@s.whatsapp.net`);
+    } else {
+      matchingJids.add(queryStr);
+    }
+  }
+
+  const jidList = Array.from(matchingJids);
+  const phoneList = Array.from(matchingPhones);
+
+  const clauses = [];
+  const params = [];
+
+  if (phoneList.length > 0) {
+    const pHolders = phoneList.map(() => '?').join(',');
+    clauses.push(`phone_number IN (${pHolders})`);
+    params.push(...phoneList);
+  }
+  if (jidList.length > 0) {
+    const jHolders = jidList.map(() => '?').join(',');
+    clauses.push(`prospect_jid IN (${jHolders})`);
+    params.push(...jidList);
+  }
+
+  const sql = `
+    SELECT 
+      id,
+      from_me,
+      sender_name,
+      message_type,
+      content,
+      media_url,
+      timestamp,
+      datetime(timestamp, 'unixepoch', 'localtime') as message_time
+    FROM messages
+    WHERE (${clauses.join(' OR ')})
+    ORDER BY timestamp ASC
+    LIMIT ? OFFSET ?
+  `;
+  params.push(limit, offset);
+
+  const messages = db.prepare(sql).all(...params);
+
+  return {
+    contact: primaryContact || { phone_number: cleanDigits, jid: Array.from(matchingJids)[0], contact_type: 'prospect' },
+    matched_contacts: matchedContacts,
+    matched_jids: jidList,
+    matched_phones: phoneList,
+    count: messages.length,
+    messages
+  };
+}
+
+/**
+ * List contacts with optional filtering by contact_type
+ * @param {string} filterType - 'all', 'prospect', 'coworker', 'vip'
+ */
+export function listRecentProspects(limit = 20, filterType = 'all') {
+  let whereClause = "";
+  const params = [];
+
+  if (filterType && filterType !== 'all') {
+    whereClause = "WHERE p.contact_type = ?";
+    params.push(filterType);
+  }
+
+  params.push(limit);
+
+  const stmt = db.prepare(`
+    SELECT 
+      p.jid,
+      p.phone_number,
+      p.name,
+      p.contact_type,
+      p.tags,
+      p.notes,
+      p.message_count,
+      p.last_interaction_at,
+      (
+        SELECT content 
+        FROM messages m 
+        WHERE m.prospect_jid = p.jid 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      ) as last_message
+    FROM prospects p
+    ${whereClause}
+    ORDER BY p.last_interaction_at DESC
+    LIMIT ?
+  `);
+  return stmt.all(...params);
+}
+
+/**
+ * Search message content with optional contact_type filter
+ */
+export function searchMessages(query, limit = 20, filterType = 'all') {
+  let whereClause = "WHERE m.content LIKE ?";
+  const params = [`%${query}%`];
+
+  if (filterType && filterType !== 'all') {
+    whereClause += " AND p.contact_type = ?";
+    params.push(filterType);
+  }
+
+  params.push(limit);
+
+  const stmt = db.prepare(`
+    SELECT 
+      m.id,
+      m.phone_number,
+      m.sender_name,
+      m.from_me,
+      m.content,
+      m.timestamp,
+      datetime(m.timestamp, 'unixepoch', 'localtime') as message_time,
+      p.name as contact_name,
+      p.contact_type,
+      p.tags
+    FROM messages m
+    LEFT JOIN prospects p ON m.prospect_jid = p.jid
+    ${whereClause}
+    ORDER BY m.timestamp DESC
+    LIMIT ?
+  `);
+  return stmt.all(...params);
+}
+
+/**
+ * Log an explicitly authorized outbound message
+ */
+export function logAuditSend({ prospectPhone, content, authorizedBy, status, msgId, errorMessage }) {
+  const cleanPhone = prospectPhone.replace(/[^0-9]/g, '');
+  const stmt = db.prepare(`
+    INSERT INTO explicit_send_audit_log (
+      prospect_phone, content, authorized_by, status, msg_id, error_message
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?
+    )
+  `);
+  return stmt.run(cleanPhone, content, authorizedBy, status, msgId || null, errorMessage || null);
+}
+
+export default db;

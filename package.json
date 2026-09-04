@@ -1,0 +1,23 @@
+{
+  "name": "autoagent",
+  "version": "1.0.0",
+  "description": "Dealership OS - AI Sales Co-Pilot & Portal Automation Engine",
+  "type": "module",
+  "scripts": {
+    "start": "pm2 start ecosystem.config.cjs",
+    "stop": "pm2 stop ecosystem.config.cjs",
+    "restart": "pm2 restart ecosystem.config.cjs",
+    "logs": "pm2 logs",
+    "pair:agent": "node scripts/pair_session.mjs --target=agent",
+    "pair:monitor": "node scripts/pair_session.mjs --target=monitor"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.13",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

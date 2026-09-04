@@ -1,0 +1,17 @@
+{
+  "name": "jax-whatsapp-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "bot.mjs",
+  "scripts": {
+    "start": "node bot.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.13",
+    "dotenv": "^16.4.7",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "@hapi/boom": "^10.0.1"
+  }
+}

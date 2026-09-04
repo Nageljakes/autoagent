@@ -1,0 +1,17 @@
+{
+  "name": "jax-whatsapp-monitor",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "monitor.mjs",
+  "scripts": {
+    "start": "node monitor.mjs"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.13",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
