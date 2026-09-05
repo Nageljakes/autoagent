@@ -4,9 +4,11 @@ const ROOT_DIR = __dirname;
 const SHARED_DATA = path.join(ROOT_DIR, "jax-shared", "data");
 const LOGS_DIR = path.join(SHARED_DATA, "logs");
 
-// Try loading environment variables from .env
+// Load environment variables from .env
+let envConfig = {};
 try {
-  require("dotenv").config({ path: path.join(ROOT_DIR, ".env") });
+  const result = require("dotenv").config({ path: path.join(ROOT_DIR, ".env") });
+  envConfig = result.parsed || {};
 } catch (e) {}
 
 const apps = [
@@ -23,6 +25,7 @@ const apps = [
     max_memory_restart: "200M",
     kill_timeout: 30000,
     env: {
+      ...envConfig,
       NODE_ENV: "production",
       API_PORT: "9095",
       SQLITE_DB_PATH: path.join(SHARED_DATA, "prospects.db"),
@@ -47,6 +50,7 @@ const apps = [
     max_memory_restart: "250M",
     kill_timeout: 30000,
     env: {
+      ...envConfig,
       NODE_ENV: "production",
       SQLITE_DB_PATH: path.join(SHARED_DATA, "prospects.db")
     },

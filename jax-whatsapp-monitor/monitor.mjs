@@ -31,6 +31,7 @@ import {
   autoAcceptLeads
 } from './lead_auto_accept.mjs';
 
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 dotenv.config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });

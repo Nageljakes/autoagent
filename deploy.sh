@@ -198,6 +198,26 @@ echo -e "\n${BLUE}--- Optional Telegram Integration ---${NC}"
 TELEGRAM_BOT_TOKEN=$(prompt_val "Telegram Bot Token (press enter to skip)" "$EXISTING_TG_TOKEN" false)
 TELEGRAM_OWNER_ID=$(prompt_val "Telegram Owner User ID (press enter to skip)" "$EXISTING_TG_ID" false)
 
+# Save initial environment configuration immediately so pairing has access to OWNER_PHONE
+mkdir -p "$(dirname "$CONFIG_ENV")"
+cat << ENV_LOCAL > "$ROOT_DIR/.env"
+# JAX Dealership OS Runtime Environment
+CRM_USERNAME=$EXISTING_CRM_USER
+CRM_PASSWORD=$EXISTING_CRM_PASS
+SALESPERSON_NAME=$SALESPERSON_NAME
+OWNER_PHONE_NUMBER=$OWNER_PHONE
+RESTRICT_TO_OWNER=true
+DEALERSHIP_NAME=$DEALERSHIP_NAME
+TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+OWNER_USER_ID=$TELEGRAM_OWNER_ID
+API_PORT=9095
+HEALTH_PORT=9090
+SQLITE_DB_PATH=$ROOT_DIR/jax-shared/data/prospects.db
+AUTH_DIR=$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor
+AGENT_AUTH_DIR=$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys
+ENV_LOCAL
+chmod 600 "$ROOT_DIR/.env"
+
 # ------------------------------------------------------------------------------
 # STEP 4: Pair WhatsApp QR Codes
 # ------------------------------------------------------------------------------

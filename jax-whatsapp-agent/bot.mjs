@@ -25,9 +25,9 @@ import {
 } from '../jax-shared/memory.mjs';
 import { startHealthServer } from '../jax-shared/health.mjs';
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config();
 
 // Start health check endpoint for watchdog/PM2
 startHealthServer();
