@@ -148,6 +148,8 @@ EXISTING_TG_TOKEN=""
 EXISTING_TG_ID=""
 EXISTING_CRM_USER=""
 EXISTING_CRM_PASS=""
+EXISTING_CRM_LOGIN_URL=""
+EXISTING_CRM_BASE_URL=""
 
 if [ -f "$ROOT_DIR/.env" ]; then
     EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
@@ -157,11 +159,15 @@ if [ -f "$ROOT_DIR/.env" ]; then
     EXISTING_TG_ID=$(grep -E "^OWNER_USER_ID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_LOGIN_URL=$(grep -E "^CRM_LOGIN_URL=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
 fi
 
 if [ -f "$CONFIG_ENV" ]; then
     [ -z "$EXISTING_CRM_USER" ] && EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_CRM_PASS" ] && EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_CRM_LOGIN_URL" ] && EXISTING_CRM_LOGIN_URL=$(grep -E "^CRM_LOGIN_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_CRM_BASE_URL" ] && EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_NAME" ] && EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_PHONE" ] && EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_BRANCH" ] && EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
@@ -340,6 +346,8 @@ echo -e "Connect to your dealership CRM portal (dealer-portal.example.com / deal
 echo -e "to automate daily diary follow-ups, dual-logging, and customer records."
 echo -e "${BLUE}──────────────────────────────────────────────────────────────────${NC}"
 
+CRM_LOGIN_URL=$(prompt_val "Dealership CRM Login URL" "${EXISTING_CRM_LOGIN_URL:-https://login.dealer-crm.co.za}" true)
+CRM_BASE_URL=$(prompt_val "Dealership CRM Base URL" "${EXISTING_CRM_BASE_URL:-https://egm.dealer-crm.co.za}" true)
 CRM_USER=$(prompt_val "Dealership CRM Username (press enter to skip)" "$EXISTING_CRM_USER" false)
 
 if [ -n "$CRM_USER" ]; then
@@ -360,6 +368,8 @@ fi
 mkdir -p "$(dirname "$CONFIG_ENV")"
 cat << ENV_EOF > "$CONFIG_ENV"
 # Dealership CRM / Dealer Portal Credentials
+CRM_LOGIN_URL=$CRM_LOGIN_URL
+CRM_BASE_URL=$CRM_BASE_URL
 CRM_USERNAME=$CRM_USER
 CRM_PASSWORD=$CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
@@ -370,6 +380,8 @@ chmod 600 "$CONFIG_ENV"
 
 cat << ENV_LOCAL > "$ROOT_DIR/.env"
 # JAX Dealership OS Runtime Environment
+CRM_LOGIN_URL=$CRM_LOGIN_URL
+CRM_BASE_URL=$CRM_BASE_URL
 CRM_USERNAME=$CRM_USER
 CRM_PASSWORD=$CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
