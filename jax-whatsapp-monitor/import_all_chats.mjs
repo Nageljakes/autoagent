@@ -1,10 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.SQLITE_DB_PATH || 'jax-shared/data/prospects.db';
-const SHARED_DIR = '{INSTALL_DIR}/jax-shared/data';
+const SHARED_DIR = process.env.SHARED_DATA_DIR || path.resolve(__dirname, '..', 'jax-shared', 'data');
 const db = new DatabaseSync(DB_PATH);
 
 console.log('🚀 Starting full chat history import into SQLite...');

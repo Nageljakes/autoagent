@@ -45,11 +45,12 @@ const PAIRING_NUMBER = (process.env.PAIRING_PHONE_NUMBER || '').replace(/[^0-9]/
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_OWNER_ID = process.env.TELEGRAM_OWNER_ID || '';
 
-const AGY_BIN = process.env.AGY_BIN || '{INSTALL_DIR}/.local/bin/agy';
-const OWNER_WORKSPACE = '{INSTALL_DIR}/jax-whatsapp-agent/workspace';
-const AUDIO_PROCESSOR = 'jax-telegram-agent/audio_processor.py';
-const IMAGE_GENERATOR = '{INSTALL_DIR}/jax-shared/image_generator.py';
-const AUTH_DIR = path.resolve('./auth_info_baileys');
+const ROOT_DIR = path.resolve(__dirname, '..');
+const AGY_BIN = process.env.AGY_BIN || path.join(process.env.HOME || '', '.local/bin/agy');
+const OWNER_WORKSPACE = path.join(ROOT_DIR, 'jax-whatsapp-agent', 'workspace');
+const AUDIO_PROCESSOR = path.join(ROOT_DIR, 'jax-telegram-agent', 'audio_processor.py');
+const IMAGE_GENERATOR = path.join(ROOT_DIR, 'jax-shared', 'image_generator.py');
+const AUTH_DIR = process.env.AGENT_AUTH_DIR || path.resolve(__dirname, 'auth_info_baileys');
 
 if (!fs.existsSync(OWNER_WORKSPACE)) {
   fs.mkdirSync(OWNER_WORKSPACE, { recursive: true });
