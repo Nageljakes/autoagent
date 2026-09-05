@@ -15,6 +15,7 @@ import {
   acquireExecutionSlot, getSemaphoreStatus, acquireProcessLock,
   trackInFlight, clearInFlight, getUnfinishedInFlight
 } from '../jax-shared/memory.mjs';
+import os from 'os';
 import { startHealthServer } from '../jax-shared/health.mjs';
 
 dotenv.config();
@@ -25,6 +26,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 acquireProcessLock('jax_telegram_agent');
 
 const log = createLogger('telegram');
+
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+function isPathSafe(targetPath) {
+  if (!targetPath) return false;
+  try {
+    const res = path.resolve(targetPath);
+    if (!res.startsWith(PROJECT_ROOT) && !res.startsWith('/tmp/') && !res.startsWith(os.tmpdir())) return false;
+    if (res.includes('.env') || res.includes('auth_info') || res.includes('.git') || res.includes('prospects.db') || res.includes('creds.json')) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OWNER_USER_ID = process.env.OWNER_USER_ID || '';
@@ -172,31 +186,35 @@ function runAgyPromptRaw(prompt, userId, continueSession = true) {
       }
     }
 
-    const args = ['-p', prompt, '--dangerously-skip-permissions', '--print-timeout', '3m'];
+    const args = ['-p', prompt, '--print-timeout', '3m'];
+    if (owner) {
+      args.push('--dangerously-skip-permissions');
+    }
     if (continueSession) {
       args.push('-c');
+    }
+
+    const agentEnv = {
+      HOME: process.env.HOME || '',
+      PATH: `${process.env.HOME || ''}/.local/node/bin:${process.env.HOME || ''}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+      PYTHONPATH: [
+        process.env.PYTHONPATH,
+        `${process.env.HOME || ''}/.local/lib/python3.12/site-packages`,
+        `${process.env.HOME || ''}/.local/lib/python3.11/site-packages`
+      ].filter(Boolean).join(':'),
+      DBUS_SESSION_BUS_ADDRESS: 'disabled:',
+      XDG_RUNTIME_DIR: ''
+    };
+
+    if (owner) {
+      Object.assign(agentEnv, process.env);
     }
 
     log.info(`AGY exec in ${targetWorkspace}`, { userId, role: owner ? 'OWNER' : 'GUEST' });
 
     const child = spawn(AGY_BIN, args, {
       cwd: targetWorkspace,
-      env: {
-        ...process.env,
-        HOME: process.env.HOME || '',
-        PATH: `${process.env.HOME || ''}/.local/node/bin:${process.env.HOME || ''}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
-        PYTHONPATH: [
-          process.env.PYTHONPATH,
-          `${process.env.HOME || ''}/.local/lib/python3.12/site-packages`,
-          `${process.env.HOME || ''}/.local/lib/python3.11/site-packages`
-        ].filter(Boolean).join(':'),
-        // This VM has no functional system keyring/secret-service; agy's keyring probe
-        // otherwise hangs ~10s per call before falling back (and can fall through to an
-        // impossible interactive OAuth prompt on this headless box). Disabling the session
-        // D-Bus address makes that probe fail instantly instead of hanging.
-        DBUS_SESSION_BUS_ADDRESS: 'disabled:',
-        XDG_RUNTIME_DIR: ''
-      },
+      env: agentEnv,
       // Explicitly close stdin. Without this, agy's stdin is a live pipe we
       // never write to or end - any subprocess agy shells out to (e.g. pdflatex
       // falling into an interactive "enter filename" prompt) inherits that dead
@@ -881,7 +899,7 @@ This script executes the Bulletproof Multi-Tier Language Protocol: African prosp
           const STOCK_PATH = path.resolve(__dirname, '../jax-shared/data/inventory/stock.json');
 
           function getImages(p) {
-            if (!p || !fs.existsSync(p)) return [];
+            if (!p || !isPathSafe(p) || !fs.existsSync(p)) return [];
             try {
               const stat = fs.statSync(p);
               if (stat.isDirectory()) {
@@ -920,7 +938,7 @@ This script executes the Bulletproof Multi-Tier Language Protocol: African prosp
 
         if (sendImageMatch && filesToSend.length === 0) {
           const target = sendImageMatch[1].trim();
-          if (fs.existsSync(target)) {
+          if (isPathSafe(target) && fs.existsSync(target)) {
             filesToSend.push(target);
           }
         }
@@ -953,7 +971,7 @@ This script executes the Bulletproof Multi-Tier Language Protocol: African prosp
         let documentSent = false;
         if (sendDocMatch) {
           const docPath = sendDocMatch[1].trim();
-          if (fs.existsSync(docPath)) {
+          if (isPathSafe(docPath) && fs.existsSync(docPath)) {
             log.info(`Sending document attachment to Telegram user ${userIdStr}: ${docPath}`);
             await ctx.sendChatAction('upload_document').catch(() => {});
             try {

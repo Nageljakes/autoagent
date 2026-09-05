@@ -13,8 +13,22 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+function isPathSafe(targetPath) {
+  if (!targetPath) return false;
+  try {
+    const res = path.resolve(targetPath);
+    if (!res.startsWith(PROJECT_ROOT) && !res.startsWith('/tmp/') && !res.startsWith(os.tmpdir())) return false;
+    if (res.includes('.env') || res.includes('auth_info') || res.includes('.git') || res.includes('prospects.db') || res.includes('creds.json')) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 import {
   saveMessage,
@@ -877,12 +891,18 @@ app.post('/send', async (req, res) => {
     } catch (checkErr) {
       logger.warn({ err: checkErr }, `onWhatsApp check failed for ${cleanPhone}, proceeding with caution`);
     }
+    if (documentPath && (!isPathSafe(documentPath) || !fs.existsSync(documentPath))) {
+      return res.status(403).json({ success: false, error: 'Invalid or missing document path' });
+    }
+    if (imagePath && (!isPathSafe(imagePath) || !fs.existsSync(imagePath))) {
+      return res.status(403).json({ success: false, error: 'Invalid or missing image path' });
+    }
 
     let result;
-    if (documentPath && fs.existsSync(documentPath)) {
+    if (documentPath) {
       const buffer = fs.readFileSync(documentPath);
       result = await sock.sendMessage(targetJid, { document: buffer, mimetype: "application/pdf", fileName: documentPath.split("/").pop(), caption: cleanMsg || "" });
-    } else if (imagePath && fs.existsSync(imagePath)) {
+    } else if (imagePath) {
       const buffer = fs.readFileSync(imagePath);
       result = await sock.sendMessage(targetJid, { image: buffer, caption: cleanMsg || '' });
     } else {
