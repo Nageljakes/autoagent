@@ -59,7 +59,8 @@ export function isLeadNotification({ senderPhone, pushName, text, isGroup, remot
   if (!text) return false;
 
   const cleanSender = (senderPhone || '').replace(/[^0-9]/g, '');
-  const isLeadNotifier = cleanSender.endsWith(LEAD_NOTIFIER_PHONE_SUFFIX) || (pushName && /(lead|crm|portal|notifier)/i.test(pushName));
+  const notifierPhone = (process.env.LEAD_NOTIFIER_PHONE || '').replace(/[^0-9]/g, '');
+  const isLeadNotifier = notifierPhone.length > 0 && cleanSender.endsWith(notifierPhone);
   const ownerPhone = (process.env.OWNER_PHONE_NUMBER || '').replace(/[^0-9]/g, '');
   const ownerSuffix = ownerPhone.length >= 9 ? ownerPhone.slice(-9) : ownerPhone;
   const salesName = (process.env.SALESPERSON_NAME || '').toLowerCase();
@@ -71,12 +72,13 @@ export function isLeadNotification({ senderPhone, pushName, text, isGroup, remot
   const isLeadNotice = /\blead(s)?\b/i.test(text);
 
   // Match if:
-  // 1. From LeadNotifier and mentions lead (direct or in group)
-  // 2. Or in group, mentions {SALESPERSON_NAME} and mentions lead
+  // 1. From an EXPLICITLY CONFIGURED LeadNotifier and mentions lead
+  // 2. Or in a group, mentions {SALESPERSON_NAME} and mentions lead, AND comes from a trusted notifier or owner
   if (isLeadNotifier && isLeadNotice) {
     return true;
   }
-  if (isGroup && mentionsSalesperson && isLeadNotice) {
+  const isOwner = ownerSuffix.length > 0 && cleanSender.endsWith(ownerSuffix);
+  if (isGroup && mentionsSalesperson && isLeadNotice && (isLeadNotifier || isOwner)) {
     return true;
   }
 
