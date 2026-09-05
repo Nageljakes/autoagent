@@ -158,13 +158,11 @@ EXISTING_CRM_USER=""
 EXISTING_CRM_PASS=""
 EXISTING_CRM_LOGIN_URL=""
 EXISTING_CRM_BASE_URL=""
-EXISTING_OWNER_LID=""
 
 if [ -f "$ROOT_DIR/.env" ]; then
     EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
-    EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_TOKEN=$(grep -E "^TELEGRAM_BOT_TOKEN=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_ID=$(grep -E "^OWNER_USER_ID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
@@ -180,10 +178,8 @@ if [ -f "$CONFIG_ENV" ]; then
     [ -z "$EXISTING_CRM_BASE_URL" ] && EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_NAME" ] && EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_PHONE" ] && EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
-    [ -z "$EXISTING_OWNER_LID" ] && EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_BRANCH" ] && EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
 fi
-OWNER_LID="$EXISTING_OWNER_LID"
 
 # Helper prompt function
 prompt_val() {
@@ -215,6 +211,14 @@ OWNER_PHONE=$(prompt_val "Salesperson Primary WhatsApp Number (e.g. 27821234567)
 echo -e "\n${BLUE}--- Optional Telegram Integration ---${NC}"
 TELEGRAM_BOT_TOKEN=$(prompt_val "Telegram Bot Token (press enter to skip)" "$EXISTING_TG_TOKEN" false)
 TELEGRAM_OWNER_ID=$(prompt_val "Telegram Owner User ID (press enter to skip)" "$EXISTING_TG_ID" false)
+
+# Recompute from verified pairings; never inherit a previously saved LID.
+resolve_owner_lid() {
+    node "$ROOT_DIR/scripts/resolve_owner_lid.mjs" "$OWNER_PHONE" \
+        "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys/creds.json" \
+        "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor/creds.json"
+}
+OWNER_LID="$(resolve_owner_lid)"
 
 # Save initial environment configuration immediately so pairing has access to OWNER_PHONE
 mkdir -p "$(dirname "$CONFIG_ENV")"
@@ -248,11 +252,11 @@ is_whatsapp_registered() {
         if node -e "
             try {
                 const fs = require('fs');
-                const c = JSON.parse(fs.readFileSync('$creds_file', 'utf8'));
+                const c = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
                 if (c.registered === true || Boolean(c.me && c.me.id)) process.exit(0);
             } catch (e) {}
             process.exit(1);
-        " 2>/dev/null; then
+        " "$creds_file" 2>/dev/null; then
             return 0
         fi
         # Grep fallback in case node is in transition
@@ -307,15 +311,6 @@ else
     fi
 fi
 
-if is_whatsapp_registered "$AGENT_CREDS"; then
-    AGENT_NUMBER=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.id?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
-    AGENT_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
-    if [ "$AGENT_NUMBER" == "$OWNER_PHONE" ] && [ -n "$AGENT_LID" ]; then
-        OWNER_LID="$AGENT_LID"
-        echo -e "${GREEN}✓ Single-phone setup detected: auto-configured Owner WhatsApp LID:${NC} $OWNER_LID"
-    fi
-fi
-
 # Part B: Salesperson Companion Monitor (Where Customer Chats Happen) - OPTIONAL
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}STEP 4B: SALESPERSON COMPANION MONITOR (OPTIONAL)${NC}"
@@ -359,13 +354,8 @@ else
     fi
 fi
 
-if is_whatsapp_registered "$MONITOR_CREDS"; then
-    DETECTED_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$MONITOR_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
-    if [ -n "$DETECTED_LID" ]; then
-        OWNER_LID="$DETECTED_LID"
-        echo -e "${GREEN}✓ Auto-detected Salesperson WhatsApp LID identity:${NC} $OWNER_LID"
-    fi
-fi
+# Pairings may have changed during onboarding; validate both together again.
+OWNER_LID="$(resolve_owner_lid)"
 
 # ------------------------------------------------------------------------------
 # STEP 5: Dealership CRM / Portal Onboarding

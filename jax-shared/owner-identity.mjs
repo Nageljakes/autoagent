@@ -33,3 +33,19 @@ export function isWhatsAppOwner(jid, {phone, lid, monitorAccounts = []} = {}) {
     candidate.endsWith('@lid') && normalizeWhatsAppJid(account?.lid) === candidate
   );
 }
+
+// Installer discovery must verify the phone before persisting an owner LID.
+export function resolveVerifiedOwnerLid(phone, accounts = []) {
+  const ownerPhone = configuredIdentity(phone, 's.whatsapp.net');
+  const lids = new Set();
+  if (ownerPhone) {
+    for (const account of accounts) {
+      const lid = normalizeWhatsAppJid(account?.lid);
+      if (normalizeWhatsAppJid(account?.id) === ownerPhone && lid?.endsWith('@lid')) {
+        lids.add(lid.slice(0, -4));
+      }
+    }
+  }
+  if (lids.size === 1) return {lid: [...lids][0], status: 'verified'};
+  return {lid: '', status: lids.size > 1 ? 'conflict' : 'unverified'};
+}
