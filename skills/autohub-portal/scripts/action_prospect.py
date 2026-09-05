@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(SCRIPT_DIR)
 
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 from prospect_db import init_db, upsert_prospect, DB_PATH
 
 def find_prospect_in_db(query: str):
@@ -43,7 +43,7 @@ def find_prospect_in_db(query: str):
 
 def find_prospect_in_diary(session, query: str):
     """Searches active diary page HTML for a customer matching query."""
-    r_diary = session.get((os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za") + "/index.cfm?page=pages/entries.cfm"), timeout=20)
+    r_diary = session.get((get_base_url() + "/index.cfm?page=pages/entries.cfm"), timeout=20)
     soup = BeautifulSoup(r_diary.text, "html.parser")
     
     for form in soup.find_all("form"):
@@ -139,7 +139,7 @@ def action_prospect(
     # If phone is empty, fetch mobile directly from Dealer CRM ERA
     if not phone and cid:
         try:
-            url_era = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={cid}'
+            url_era = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={cid}'
             r_era = session.get(url_era, timeout=15)
             soup_era = BeautifulSoup(r_era.text, "html.parser")
             mobile_inp = soup_era.find("input", {"name": "mobile"})
@@ -165,7 +165,7 @@ def action_prospect(
         purpose = determine_purpose(note, cust_info.get("purpose", ""))
 
     # 4. Fetch fresh session key (sg)
-    r_diary = session.get((os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za") + "/index.cfm?page=pages/entries.cfm"), timeout=20)
+    r_diary = session.get((get_base_url() + "/index.cfm?page=pages/entries.cfm"), timeout=20)
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     sg_input = soup_diary.find("input", {"id": "sg"}) or soup_diary.find("input", {"name": "sg"})
     sg = sg_input.get("value") if sg_input else ""
@@ -174,7 +174,7 @@ def action_prospect(
         sg = m.group(1) if m else ""
 
     # 5. GET adddiaryentry.cfm
-    url_add = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/adddiaryentry.cfm&custid={cid}&sg={sg}'
+    url_add = f'{get_base_url()}/index.cfm?page=pages/adddiaryentry.cfm&custid={cid}&sg={sg}'
     r_add = session.get(url_add, timeout=20)
     soup_add = BeautifulSoup(r_add.text, "html.parser")
 
@@ -227,7 +227,7 @@ def action_prospect(
     }
 
     headers = {
-        "Origin": os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za"),
+        "Origin": get_base_url(),
         "Referer": url_add,
     }
 
@@ -239,7 +239,7 @@ def action_prospect(
     # 6. Also log permanent note directly to Customer ERA Notes section (Red Add Note button)
     if note:
         try:
-            url_cfc = (os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za") + "/model/com/southafrica/customer/customer_sa.cfc")
+            url_cfc = (get_base_url() + "/model/com/southafrica/customer/customer_sa.cfc")
             session.post(url_cfc, data={
                 "method": "addCustomerNotes",
                 "companyId": 5784,

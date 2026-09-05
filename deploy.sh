@@ -346,8 +346,8 @@ echo -e "Connect to your dealership CRM portal (dealer-portal.example.com / deal
 echo -e "to automate daily diary follow-ups, dual-logging, and customer records."
 echo -e "${BLUE}──────────────────────────────────────────────────────────────────${NC}"
 
-CRM_LOGIN_URL=$(prompt_val "Dealership CRM Login URL" "${EXISTING_CRM_LOGIN_URL:-https://login.dealer-crm.co.za}" true)
-CRM_BASE_URL=$(prompt_val "Dealership CRM Base URL" "${EXISTING_CRM_BASE_URL:-https://egm.dealer-crm.co.za}" true)
+CRM_LOGIN_URL=$(prompt_val "Dealership CRM Portal / Login URL (e.g. https://nissandrive.co.za)" "${EXISTING_CRM_LOGIN_URL}" true)
+CRM_BASE_URL=$(prompt_val "Dealership CRM Base URL (optional, press enter to auto-detect)" "${EXISTING_CRM_BASE_URL}" false)
 CRM_USER=$(prompt_val "Dealership CRM Username (press enter to skip)" "$EXISTING_CRM_USER" false)
 
 if [ -n "$CRM_USER" ]; then

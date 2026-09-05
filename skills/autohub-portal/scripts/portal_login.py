@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Authenticated Session Script for Dealer Portal (dealer-crm.co.za)
+Authenticated Session Script for Dealership CRM Portal
 Uses curl_cffi to maintain session cookies after login with TLS impersonation.
+Dynamically resolves CRM endpoints without hardcoded domain dependencies.
 """
 
 import sys
@@ -9,31 +10,17 @@ import os
 import getpass
 import argparse
 from pathlib import Path
+from urllib.parse import urlparse, urljoin
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 
-LOGIN_URL = (os.getenv("CRM_LOGIN_URL", "https://login.dealer-crm.co.za") + "/checkserver.cfm")
 DEFAULT_CONFIG_PATH = Path(os.path.expanduser("~/.config/dealer_credentials.env"))
 LOCAL_ENV_PATH = Path.cwd() / ".env"
 
-def load_credentials_from_env_file(path: Path = None):
-    candidates = []
-    if path and Path(path).exists():
-        candidates.append(Path(path))
-    if DEFAULT_CONFIG_PATH.exists():
-        candidates.append(DEFAULT_CONFIG_PATH)
-    if LOCAL_ENV_PATH.exists():
-        candidates.append(LOCAL_ENV_PATH)
-    
-    for c_path in candidates:
-        username, password = _parse_env_file(c_path)
-        if username and password:
-            return username, password
-    return None, None
-
 def _parse_env_file(path: Path):
     username, password = None, None
-    username, password = None, None
+    if not path.exists():
+        return None, None
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -42,30 +29,98 @@ def _parse_env_file(path: Path):
             key, val = line.split("=", 1)
             key = key.strip()
             val = val.strip().strip("\"'")
+            if key not in os.environ:
+                os.environ[key] = val
             if key == "CRM_USERNAME":
                 username = val
             elif key == "CRM_PASSWORD":
                 password = val
     return username, password
 
+def load_credentials_from_env_file(path: Path = None):
+    candidates = []
+    if path and Path(path).exists():
+        candidates.append(Path(path))
+    if LOCAL_ENV_PATH.exists():
+        candidates.append(LOCAL_ENV_PATH)
+    if DEFAULT_CONFIG_PATH.exists():
+        candidates.append(DEFAULT_CONFIG_PATH)
+    
+    for c_path in candidates:
+        username, password = _parse_env_file(c_path)
+        if username and password:
+            return username, password
+    return None, None
+
+# Auto-load env configurations on import
+load_credentials_from_env_file()
+
+def get_login_url(session: requests.Session = None) -> str:
+    """
+    Dynamically determines the CRM POST action endpoint from CRM_LOGIN_URL.
+    If pointing to a landing page (e.g. dealership portal), inspects the form action.
+    """
+    raw_url = os.getenv("CRM_LOGIN_URL", "").strip()
+    if not raw_url:
+        raise ValueError("CRM_LOGIN_URL environment variable is not configured.")
+    
+    if raw_url.endswith(".cfm") or "/checkserver" in raw_url:
+        return raw_url
+
+    # Check landing page for form action if given a portal root
+    try:
+        s = session or requests.Session(impersonate="chrome124")
+        resp = s.get(raw_url, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        form = soup.find("form")
+        if form and form.get("action"):
+            return urljoin(raw_url, form.get("action").strip())
+    except Exception:
+        pass
+
+    return f"{raw_url.rstrip('/')}/checkserver.cfm"
+
+def get_base_url() -> str:
+    """Returns the CRM base URL from environment or previously resolved session."""
+    base_url = os.getenv("CRM_BASE_URL", "").strip().rstrip("/")
+    if base_url:
+        return base_url
+    
+    # Fallback to base of CRM_LOGIN_URL
+    raw_login = os.getenv("CRM_LOGIN_URL", "").strip()
+    if raw_login:
+        parsed = urlparse(raw_login)
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return ""
+
 def login(username: str, password: str, impersonate: str = "chrome124"):
     session = requests.Session(impersonate=impersonate)
+    login_url = get_login_url(session)
     
     payload = {
         "dec1": username,
         "dec2": password,
     }
     
+    parsed = urlparse(login_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
     headers = {
-        "Origin": "https://dealer-portal.example.com",
-        "Referer": "https://dealer-portal.example.com/",
+        "Origin": origin,
+        "Referer": f"{origin}/",
     }
 
-    print(f"Connecting to {LOGIN_URL} with {impersonate} TLS signature...", file=sys.stderr)
-    res = session.post(LOGIN_URL, data=payload, headers=headers, allow_redirects=True, timeout=20)
+    print(f"Connecting to {login_url} with {impersonate} TLS signature...", file=sys.stderr)
+    res = session.post(login_url, data=payload, headers=headers, allow_redirects=True, timeout=20)
     
     print(f"Response Status: {res.status_code}", file=sys.stderr)
     print(f"Final URL: {res.url}", file=sys.stderr)
+
+    # Automatically capture and set CRM_BASE_URL from final redirected portal URL
+    if res.url:
+        final_parsed = urlparse(res.url)
+        detected_base = f"{final_parsed.scheme}://{final_parsed.netloc}"
+        if not os.getenv("CRM_BASE_URL"):
+            os.environ["CRM_BASE_URL"] = detected_base
     
     # Check if cookies were assigned
     cookies = session.cookies.get_dict()

@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(SCRIPT_DIR)
 
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 from prospect_db import init_db, upsert_prospect, DB_PATH
 
 def sanitize_dashes(text: str) -> str:
@@ -26,7 +26,7 @@ def sanitize_dashes(text: str) -> str:
 
 def get_unactioned_leads(session):
     """Fetches inbox and returns list of unactioned leads."""
-    inbox_url = (os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za") + "/index.cfm?page=pages/inbox.cfm")
+    inbox_url = (get_base_url() + "/index.cfm?page=pages/inbox.cfm")
     r = session.get(inbox_url, timeout=20)
     soup = BeautifulSoup(r.text, "html.parser")
     
@@ -70,7 +70,7 @@ def get_unactioned_leads(session):
 
 def accept_lead(session, lead_info):
     """Opens viewleadcustomer.cfm and posts saveleadcustomer.cfm to accept the lead."""
-    lead_url = lead_info.get("url") or f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/viewleadcustomer.cfm&ileadcustid={lead_info['ileadcustid']}&duplicate='
+    lead_url = lead_info.get("url") or f'{get_base_url()}/index.cfm?page=pages/viewleadcustomer.cfm&ileadcustid={lead_info['ileadcustid']}&duplicate='
     
     r_view = session.get(lead_url, timeout=20)
     soup = BeautifulSoup(r_view.text, "html.parser")
@@ -112,7 +112,7 @@ def accept_lead(session, lead_info):
     payload["pagetype"] = "accept"
     
     headers = {
-        "Origin": os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za"),
+        "Origin": get_base_url(),
         "Referer": lead_url,
     }
     

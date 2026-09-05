@@ -376,11 +376,11 @@ def fetch_phone_from_crm_era(custid: str) -> tuple[str, str]:
         return "", ""
     try:
         from bs4 import BeautifulSoup
-        from portal_login import login, load_credentials_from_env_file
+        from portal_login import get_base_url, login, load_credentials_from_env_file
         
         user, pwd = load_credentials_from_env_file()
         session, res = login(user, pwd)
-        url = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}'
+        url = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}'
         r = session.get(url, timeout=15)
         soup = BeautifulSoup(r.text, "html.parser")
         
