@@ -68,7 +68,7 @@ def get_quote(custid: str, ref: str = None, impersonate: str = "chrome124"):
         sg_input = soup.find("input", {"name": "sg"})
         sg = sg_input["value"] if sg_input else ""
 
-    modal_url = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={custid}"
+    modal_url = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={custid}'
     modal_resp = session.get(modal_url, timeout=20)
     modal_soup = BeautifulSoup(modal_resp.text, "html.parser")
 
@@ -98,7 +98,7 @@ def get_quote(custid: str, ref: str = None, impersonate: str = "chrome124"):
         chosen = candidates[0]
 
     frame_url = (
-        f"https://egm.dealer-crm.co.za/index.cfm?page=../southafrica/pages/quote_frame.cfm"
+        f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=../southafrica/pages/quote_frame.cfm'
         f"&sg={sg}&custId={custid}&documenttype={chosen['docType']}"
         f"&quoteId={chosen['quoteId']}&quote_version={chosen['ver']}"
     )

@@ -168,7 +168,7 @@ def parse_era_profile(html):
     }
 
 def fetch_all_today_entries(session):
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm", timeout=20)
+    r_diary = session.get((os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za") + "/index.cfm?page=pages/entries.cfm"), timeout=20)
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     
     sg_input = soup_diary.find("input", {"id": "sg"}) or soup_diary.find("input", {"name": "sg"})
@@ -185,7 +185,7 @@ def fetch_all_today_entries(session):
     all_html_chunks = [r_diary.text]
     page_num = 2
     while page_num < 15:
-        ajax_url = f"https://egm.dealer-crm.co.za/index.cfm?page=includes/_showtableloadmoreentries.cfm&sg={sg}&ajx"
+        ajax_url = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=includes/_showtableloadmoreentries.cfm&sg={sg}&ajx'
         params = {
             "companyid": 5784,
             "loginid": 247088,
@@ -257,7 +257,7 @@ def generate_all_cards(output_md, output_pdf):
         name = e["name"]
         print(f"[{idx}/{len(all_entries)}] Extracting ERA & Deal Card for {name} ({cid})...")
         
-        url_era = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}"
+        url_era = f'{os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")}/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}'
         r_era = session.get(url_era, timeout=15)
         parsed = parse_era_profile(r_era.text)
         

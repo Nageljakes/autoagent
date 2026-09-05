@@ -12,7 +12,7 @@ from pathlib import Path
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 
-LOGIN_URL = "https://login.dealer-crm.co.za/checkserver.cfm"
+LOGIN_URL = (os.getenv("CRM_LOGIN_URL", "https://login.dealer-crm.co.za") + "/checkserver.cfm")
 DEFAULT_CONFIG_PATH = Path(os.path.expanduser("~/.config/dealer_credentials.env"))
 LOCAL_ENV_PATH = Path.cwd() / ".env"
 
