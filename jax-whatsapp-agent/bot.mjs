@@ -137,11 +137,43 @@ function getVipInfo(jid) {
   return null;
 }
 
+function getMonitorOwnerIds() {
+  const ids = new Set();
+  const monitorPaths = [
+    process.env.AUTH_DIR ? path.join(process.env.AUTH_DIR, 'creds.json') : null,
+    path.resolve(__dirname, '../jax-whatsapp-monitor/auth_info_monitor/creds.json'),
+    path.resolve(__dirname, '../../jax-whatsapp-monitor/auth_info_monitor/creds.json')
+  ].filter(Boolean);
+
+  for (const p of monitorPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        const c = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        if (c.me?.id) {
+          ids.add(c.me.id.split(':')[0].split('@')[0].replace(/[^0-9]/g, ''));
+        }
+        if (c.me?.lid) {
+          ids.add(c.me.lid.split(':')[0].split('@')[0].replace(/[^0-9]/g, ''));
+        }
+      } catch (e) {}
+    }
+  }
+  return ids;
+}
+
 function isOwner(jid) {
   if (!jid) return false;
   const rawId = jid.split('@')[0].replace(/[^0-9]/g, '');
   if (authenticatedOwners.has(rawId)) return true;
-  if (OWNER_PHONE_NUMBER && rawId.includes(OWNER_PHONE_NUMBER)) return true;
+  if (OWNER_PHONE_NUMBER && (rawId.includes(OWNER_PHONE_NUMBER) || OWNER_PHONE_NUMBER.includes(rawId))) return true;
+  if (process.env.OWNER_LID && (rawId.includes(process.env.OWNER_LID.replace(/[^0-9]/g, '')) || process.env.OWNER_LID.includes(rawId))) return true;
+  const monitorIds = getMonitorOwnerIds();
+  for (const id of monitorIds) {
+    if (id && (rawId.includes(id) || id.includes(rawId))) {
+      authenticatedOwners.add(rawId);
+      return true;
+    }
+  }
   return false;
 }
 
