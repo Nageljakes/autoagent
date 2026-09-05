@@ -5,7 +5,7 @@ import argparse
 from datetime import datetime, timedelta
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 
 def parse_all_entries(html):
     """
@@ -49,7 +49,7 @@ def sanitize_dashes(text: str) -> str:
 
 def move_entry(session, custid, name, target_date_str, target_day, target_month, target_year, current_purpose="Follow up regarding - - Interest"):
     # 1. Fetch fresh session key
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm")
+    r_diary = session.get(f"{get_base_url()}/index.cfm?page=pages/entries.cfm")
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     sg_input = soup_diary.find("input", {"id": "sg"})
     sg = sg_input.get("value") if sg_input else ""
@@ -57,7 +57,7 @@ def move_entry(session, custid, name, target_date_str, target_day, target_month,
     print(f"Processing {name} (CustID: {custid})...")
 
     # 2. GET adddiaryentry.cfm
-    url_add = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/adddiaryentry.cfm&custid={custid}&sg={sg}"
+    url_add = f"{get_base_url()}/index.cfm?page=pages/adddiaryentry.cfm&custid={custid}&sg={sg}"
     r_add = session.get(url_add)
     soup_add = BeautifulSoup(r_add.text, "html.parser")
 
@@ -111,7 +111,7 @@ def move_entry(session, custid, name, target_date_str, target_day, target_month,
     }
 
     headers = {
-        "Origin": "https://egm.dealer-crm.co.za",
+        "Origin": get_base_url(),
         "Referer": url_add,
     }
 
@@ -143,7 +143,7 @@ def reschedule_all(target_date: datetime = None):
 
     while True:
         print(f"\n--- Sweep Pass #{iteration} ---")
-        r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm")
+        r_diary = session.get(f"{get_base_url()}/index.cfm?page=pages/entries.cfm")
         entries = parse_all_entries(r_diary.text)
 
         if not entries:

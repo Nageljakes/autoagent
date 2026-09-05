@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 from bs4 import BeautifulSoup
 sys.path.append(str(Path(__file__).resolve().parent))
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 from move_diary_entries import parse_all_entries
 from deal_heat_scorer import evaluate_deal_heat, clean_phone
 
@@ -148,7 +148,7 @@ def generate_cards_briefing(output_md, output_pdf):
     user, pwd = load_credentials_from_env_file()
     session, res = login(user, pwd)
     
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm")
+    r_diary = session.get(f"{get_base_url()}/index.cfm?page=pages/entries.cfm")
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     sg_input = soup_diary.find("input", {"id": "sg"})
     sg = sg_input.get("value") if sg_input else ""
@@ -170,7 +170,7 @@ def generate_cards_briefing(output_md, output_pdf):
         count = row[1] if row and row[1] else 1
         purpose = row[2] if row and row[2] else e.get("purpose", "")
         
-        url_era = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}"
+        url_era = f"{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}"
         r_era = session.get(url_era, timeout=15)
         parsed = parse_era_profile(r_era.text)
         

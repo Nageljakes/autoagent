@@ -12,9 +12,14 @@ from pathlib import Path
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 
-LOGIN_URL = "https://login.dealer-crm.co.za/checkserver.cfm"
+LOGIN_URL = os.getenv("CRM_LOGIN_URL", "https://login.dealer-crm.co.za/checkserver.cfm")
+CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://egm.dealer-crm.co.za")
 DEFAULT_CONFIG_PATH = Path(os.path.expanduser("~/.config/dealer_credentials.env"))
 LOCAL_ENV_PATH = Path.cwd() / ".env"
+
+def get_base_url():
+    """Return the CRM portal base URL (no trailing slash)."""
+    return CRM_BASE_URL.rstrip("/")
 
 def load_credentials_from_env_file(path: Path = None):
     candidates = []

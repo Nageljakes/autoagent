@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent))
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 from bs4 import BeautifulSoup
 import re
 import sqlite3
@@ -102,7 +102,7 @@ def run_sync():
     session, res = login(user, pwd)
 
     # 1. Fetch initial diary page
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm", timeout=20)
+    r_diary = session.get(f"{get_base_url()}/index.cfm?page=pages/entries.cfm", timeout=20)
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     
     sg_input = soup_diary.find("input", {"id": "sg"}) or soup_diary.find("input", {"name": "sg"})
@@ -125,7 +125,7 @@ def run_sync():
     MAX_PAGES = 50
     page_num = 2
     while page_num < MAX_PAGES:
-        ajax_url = f"https://egm.dealer-crm.co.za/index.cfm?page=includes/_showtableloadmoreentries.cfm&sg={sg}&ajx"
+        ajax_url = f"{get_base_url()}/index.cfm?page=includes/_showtableloadmoreentries.cfm&sg={sg}&ajx"
         params = {
             "companyid": 5784,
             "loginid": 247088,
@@ -196,7 +196,7 @@ def run_sync():
     for idx, p in enumerate(diary_prospects, 1):
         cid = p["custid"]
         print(f"[{idx}/{len(diary_prospects)}] Extracting {p['name']} (CustID: {cid})...")
-        url_era = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}"
+        url_era = f"{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={cid}"
         r_era = session.get(url_era, timeout=20)
         era_data = extract_era_history(r_era.text)
 

@@ -22,6 +22,7 @@ HOME_DIR = os.environ.get("HOME", "")
 PROSPECT_HISTORY_DB = os.environ.get("PROSPECT_HISTORY_DB", os.path.join(HOME_DIR, ".gemini", "antigravity-cli", "scratch", "prospect_history.db"))
 PROSPECTS_DB = os.environ.get("PROSPECTS_DB", os.path.join(SHARED_DIR, "data", "prospects.db"))
 CRM_SYNC_JSON = os.environ.get("CRM_SYNC_JSON", os.path.join(SHARED_DIR, "data", "crm_sync.json"))
+SALESPERSON_NAME = os.environ.get("SALESPERSON_NAME", "Salesperson")
 
 conn = sqlite3.connect(PROSPECT_HISTORY_DB)
 c = conn.cursor()
@@ -72,14 +73,14 @@ for row in c.fetchall():
         res = c_wa.fetchone()
         if res:
             content, from_me, ts = res
-            sender = "{SALESPERSON_NAME}" if from_me else name
+            sender = SALESPERSON_NAME if from_me else name
             # Truncate content to 60 chars
             snippet = content[:60] + "..." if len(content) > 60 else content
             wa_snapshot = f"{sender}: {snippet}"
         
     leads.append({
         "id": generate_id(custid),
-        "agent": "{SALESPERSON_NAME}",
+        "agent": SALESPERSON_NAME,
         "customer": name or "Unknown",
         "phone": phone or "",
         "vehicle": vehicle or "",
@@ -99,7 +100,7 @@ for row in c.fetchall():
 output = {
     "leads": leads,
     "agents": {
-        "{SALESPERSON_NAME}": {"quizzes": [], "attendance": [], "appraisals": [], "notes": []}
+        SALESPERSON_NAME: {"quizzes": [], "attendance": [], "appraisals": [], "notes": []}
     }
 }
 
@@ -109,12 +110,15 @@ with open(CRM_SYNC_JSON, 'w') as f:
 print(f"Created {CRM_SYNC_JSON}")
 
 import subprocess
-import os
 
-try:
-    print("Pushing updates to CRM Gist...")
-    env = os.environ.copy()
-    subprocess.run(["gh", "gist", "edit", os.environ.get("CRM_GIST_ID", ""), "-f", "crm_sync.json", CRM_SYNC_JSON], env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print("Successfully synced to remote CRM storage.")
-except Exception as e:
-    print("Failed to sync to remote CRM:", e)
+CRM_GIST_ID = os.environ.get("CRM_GIST_ID", "")
+if CRM_GIST_ID:
+    try:
+        print("Pushing updates to CRM Gist...")
+        env = os.environ.copy()
+        subprocess.run(["gh", "gist", "edit", CRM_GIST_ID, "-f", "crm_sync.json", CRM_SYNC_JSON], env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("Successfully synced to remote CRM storage.")
+    except Exception as e:
+        print("Failed to sync to remote CRM:", e)
+else:
+    print("CRM_GIST_ID not set, skipping remote sync.")
