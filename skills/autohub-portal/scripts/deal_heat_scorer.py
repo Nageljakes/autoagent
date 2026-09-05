@@ -131,7 +131,7 @@ def generate_heat_report():
         try:
             conn_wa = sqlite3.connect(WA_DB)
             c_wa = conn_wa.cursor()
-            c_wa.execute("SELECT from_phone, body, is_from_me, timestamp FROM messages ORDER BY timestamp ASC")
+            c_wa.execute("SELECT phone_number, content, from_me, timestamp FROM messages ORDER BY timestamp ASC")
             for r in c_wa.fetchall():
                 p_clean = clean_phone(r[0])
                 if p_clean not in wa_history_by_phone:
