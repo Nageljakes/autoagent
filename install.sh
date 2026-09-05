@@ -25,8 +25,8 @@ else
     cd "$INSTALL_DIR"
 fi
 
-# Make deploy scripts executable
-chmod +x deploy.sh setup.sh
+# Make deploy and uninstall scripts executable
+chmod +x deploy.sh setup.sh uninstall.sh 2>/dev/null || true
 
 echo -e "\033[1;32m✓ Download complete. Launching interactive onboarding harness...\033[0m"
 if [ ! -t 0 ] && [ -r /dev/tty ]; then

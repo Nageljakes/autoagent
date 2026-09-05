@@ -105,6 +105,16 @@ curl -sL https://raw.githubusercontent.com/Nageljakes/autoagent/main/install.sh 
 
 *(You can also use `./setup.sh` as an alias).*
 
+### 🗑️ Complete Uninstallation
+
+To cleanly stop and remove all PM2 background services, saved credentials, and repository files:
+
+```bash
+curl -sL https://raw.githubusercontent.com/Nageljakes/autoagent/main/uninstall.sh | bash
+```
+
+*(Or run `./uninstall.sh` / `npm run uninstall` from within the cloned directory).*
+
 ---
 
 ## 📋 The 6-Step Onboarding Walkthrough
@@ -139,6 +149,7 @@ The `deploy.sh` script automates the entire setup lifecycle:
 autoagent/
 ├── deploy.sh                     # Master single-command onboarding script
 ├── setup.sh                      # Quickstart alias wrapper
+├── uninstall.sh                  # All-in-one uninstaller script
 ├── ecosystem.config.cjs          # Portable PM2 process management config
 ├── package.json                  # Root dependencies and operational npm scripts
 ├── requirements.txt              # Python dependencies for scrapers and portal tools
@@ -186,6 +197,9 @@ curl -s http://127.0.0.1:9095/history/<your_phone> | jq .
 
 # Search local pre-owned vehicle stock
 PYTHONPATH=skills/autohub-portal/scripts python3 skills/bb-used-cars/scripts/search_stock.py -q "Sedan / SUV"
+
+# Completely uninstall Dealership OS and cleanup
+./uninstall.sh
 ```
 
 ---

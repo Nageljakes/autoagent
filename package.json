@@ -9,7 +9,8 @@
     "restart": "pm2 restart ecosystem.config.cjs",
     "logs": "pm2 logs",
     "pair:agent": "node scripts/pair_session.mjs --target=agent",
-    "pair:monitor": "node scripts/pair_session.mjs --target=monitor"
+    "pair:monitor": "node scripts/pair_session.mjs --target=monitor",
+    "uninstall": "./uninstall.sh"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
