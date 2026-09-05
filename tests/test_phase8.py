@@ -130,11 +130,23 @@ class Phase8Tests(unittest.TestCase):
             db.close()
             env = dict(os.environ, PROSPECT_HISTORY_DB=str(crm), SQLITE_DB_PATH=str(wa),
                        CRM_SYNC_JSON=str(out), CRM_GIST_ID="", SALESPERSON_NAME="Configured Advisor")
-            for script in ["scripts/generate_crm_sync.py", "jax-shared/scripts/crm_autosync.py"]:
-                subprocess.run([sys.executable, str(ROOT / script)], cwd=tmp, env=env, check=True, capture_output=True)
-                data = json.loads(out.read_text())
-                self.assertEqual(data["leads"][0]["waSnapshot"], "Configured Advisor: new")
-                self.assertEqual(data["leads"][0]["agent"], "Configured Advisor")
+            cases = [
+                ("new", 1, "Configured Advisor: new"),
+                (None, 0, "Fixture Customer: [Non-text message]"),
+                ("", 1, "Configured Advisor: [Non-text message]"),
+                ("x" * 75, 0, "Fixture Customer: " + "x" * 60 + "..."),
+            ]
+            for content, from_me, expected in cases:
+                with sqlite3.connect(wa) as db:
+                    db.execute("UPDATE messages SET content = ?, from_me = ? WHERE timestamp = 2", (content, from_me))
+                db.close()
+                for script in ["scripts/generate_crm_sync.py", "jax-shared/scripts/crm_autosync.py"]:
+                    with self.subTest(content=content, from_me=from_me, script=script):
+                        subprocess.run([sys.executable, str(ROOT / script)], cwd=tmp, env=env, check=True, capture_output=True)
+                        data = json.loads(out.read_text())
+                        self.assertEqual(data["leads"][0]["waSnapshot"], expected)
+                        self.assertEqual(data["leads"][0]["agent"], "Configured Advisor")
+
 
 
 if __name__ == "__main__":

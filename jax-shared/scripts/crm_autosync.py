@@ -72,6 +72,7 @@ def main(sync_remote=True):
             if res:
                 content, from_me, ts = res
                 sender = SALESPERSON_NAME if from_me else name
+                content = content or "[Non-text message]"
                 # Truncate content to 60 chars
                 snippet = content[:60] + "..." if len(content) > 60 else content
                 wa_snapshot = f"{sender}: {snippet}"
