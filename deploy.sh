@@ -213,11 +213,55 @@ is_whatsapp_registered() {
     return 1
 }
 
-# Part A: Salesperson Companion Monitor (Where Customer Chats Happen)
+# Part A: AI Agent Private Co-Pilot (Internal Assistant) - PRIMARY
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}QR CODE 1: SALESPERSON COMPANION MONITOR (YOUR PHONE)${NC}"
+echo -e "${BOLD}STEP 4A: PAIR THE AI AGENT BOT (PRIMARY)${NC}"
+echo -e "This connects your AI Co-Pilot so it can receive and respond to your commands."
+echo -e " • Message this bot to give instructions: check stock, follow up with leads, etc."
+echo -e " • Dedicated bot phone: scan QR with that phone."
+echo -e " • Single phone setup: scan QR with your phone (chat via 'Message yourself')."
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════${NC}"
+
+AGENT_CREDS="$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys/creds.json"
+if is_whatsapp_registered "$AGENT_CREDS"; then
+    echo -e "${GREEN}✓ Existing WhatsApp session detected for AI Agent.${NC}"
+    read -r -p "Do you want to re-pair the AI Agent WhatsApp bot? (y/N): " REPAIR_AGENT || true
+    if [[ "$REPAIR_AGENT" =~ ^[Yy]$ ]]; then
+        rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
+        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
+    fi
+else
+    rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
+    echo -e "Display QR code and pair the AI Agent bot now? [Y/n]:"
+    read -r -p "> " PAIR_NOW_AGENT || PAIR_NOW_AGENT="y"
+    PAIR_NOW_AGENT="${PAIR_NOW_AGENT:-y}"
+    if [[ "$PAIR_NOW_AGENT" =~ ^[Yy]$ ]]; then
+        while true; do
+            echo -e "\n${CYAN}Displaying QR code for AI Agent Private Bot...${NC}"
+            node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
+            if is_whatsapp_registered "$AGENT_CREDS"; then
+                echo -e "${GREEN}✓ AI Agent Private Bot paired and registered successfully!${NC}"
+                break
+            else
+                echo -e "${YELLOW}⚠️  Agent pairing was not completed.${NC}"
+                read -r -p "Would you like to try scanning again? (Y/n): " RETRY_AGENT || RETRY_AGENT="y"
+                RETRY_AGENT="${RETRY_AGENT:-y}"
+                if [[ ! "$RETRY_AGENT" =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}Skipping agent pairing for now. You can pair anytime with:${NC} npm run pair:agent"
+                    break
+                fi
+            fi
+        done
+    else
+        echo -e "${YELLOW}Skipping agent pairing for now. Pair anytime with:${NC} npm run pair:agent"
+    fi
+fi
+
+# Part B: Salesperson Companion Monitor (Where Customer Chats Happen) - OPTIONAL
+echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}STEP 4B: SALESPERSON COMPANION MONITOR (OPTIONAL)${NC}"
 echo -e "Connects as a companion device to YOUR phone ($OWNER_PHONE)."
-echo -e " • Tracks ongoing deals and customer replies passively."
+echo -e " • Tracks ongoing deals and customer replies passively into CRM."
 echo -e " • Never auto-replies on its own."
 echo -e " • Sends customer follow-ups ONLY when you explicitly command the agent."
 echo -e "${BLUE}══════════════════════════════════════════════════════════════════${NC}"
@@ -232,54 +276,27 @@ if is_whatsapp_registered "$MONITOR_CREDS"; then
     fi
 else
     rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
-    echo -e "Connects to YOUR personal phone ($OWNER_PHONE) to passively mirror chats."
-    read -r -p "Scan QR code to pair your phone now? (y/N): " PAIR_NOW_MONITOR || true
+    echo -e "Pair your sales phone ($OWNER_PHONE) as a companion monitor? (y/N):"
+    read -r -p "> " PAIR_NOW_MONITOR || true
     if [[ "$PAIR_NOW_MONITOR" =~ ^[Yy]$ ]]; then
-        echo -e "Please scan the QR code with YOUR sales phone ($OWNER_PHONE):"
-        node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
-        if is_whatsapp_registered "$MONITOR_CREDS"; then
-            echo -e "${GREEN}✓ Salesperson Monitor paired and registered successfully!${NC}"
-        else
-            echo -e "${YELLOW}Monitor pairing was not completed. You can pair anytime with:${NC} npm run pair:monitor"
-            rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
-        fi
+        while true; do
+            echo -e "Please scan the QR code with YOUR sales phone ($OWNER_PHONE):"
+            node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
+            if is_whatsapp_registered "$MONITOR_CREDS"; then
+                echo -e "${GREEN}✓ Salesperson Monitor paired and registered successfully!${NC}"
+                break
+            else
+                echo -e "${YELLOW}⚠️  Monitor pairing was not completed.${NC}"
+                read -r -p "Would you like to try scanning again? (y/N): " RETRY_MONITOR || true
+                if [[ ! "$RETRY_MONITOR" =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}Skipping monitor pairing. Pair anytime with:${NC} npm run pair:monitor"
+                    rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
+                    break
+                fi
+            fi
+        done
     else
-        echo -e "${YELLOW}Skipping monitor pairing for now. Pair anytime with:${NC} npm run pair:monitor"
-    fi
-fi
-
-# Part B: AI Agent Private Co-Pilot (Internal Assistant)
-echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}QR CODE 2: AI AGENT PRIVATE BOT NUMBER${NC}"
-echo -e "This is a private AI assistant number exclusively for YOU to message."
-echo -e " • Message this bot to give instructions: e.g. 'follow up with Joseph'"
-echo -e " • It does NOT converse with customers directly."
-echo -e " • Auto-replies to unknown numbers are strictly blocked."
-echo -e "${BLUE}══════════════════════════════════════════════════════════════════${NC}"
-
-AGENT_CREDS="$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys/creds.json"
-if is_whatsapp_registered "$AGENT_CREDS"; then
-    echo -e "${GREEN}✓ Existing WhatsApp session detected for AI Agent.${NC}"
-    read -r -p "Do you want to re-pair the AI Agent WhatsApp bot? (y/N): " REPAIR_AGENT || true
-    if [[ "$REPAIR_AGENT" =~ ^[Yy]$ ]]; then
-        rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
-        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
-    fi
-else
-    rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
-    echo -e "Private internal bot number for sending instructions to the AI agent."
-    read -r -p "Scan QR code to pair the AI Agent bot now? (y/N): " PAIR_NOW_AGENT || true
-    if [[ "$PAIR_NOW_AGENT" =~ ^[Yy]$ ]]; then
-        echo -e "Please scan the QR code to pair the AI Agent Private Bot:"
-        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
-        if is_whatsapp_registered "$AGENT_CREDS"; then
-            echo -e "${GREEN}✓ AI Agent Private Bot paired and registered successfully!${NC}"
-        else
-            echo -e "${YELLOW}Agent pairing was not completed. You can pair anytime with:${NC} npm run pair:agent"
-            rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
-        fi
-    else
-        echo -e "${YELLOW}Skipping agent pairing for now. Pair anytime with:${NC} npm run pair:agent"
+        echo -e "${BLUE}Skipping companion monitor for now. Pair anytime with:${NC} npm run pair:monitor"
     fi
 fi
 
@@ -368,11 +385,38 @@ pm2 delete ecosystem.config.cjs 2>/dev/null || true
 pm2 start "$ROOT_DIR/ecosystem.config.cjs"
 pm2 save
 
-echo -e "\n${GREEN}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}     🎉  ONBOARDING COMPLETE - DEALERSHIP OS IS ONLINE!         ${NC}"
-echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}Current Service Status:${NC}"
-pm2 status
+BOT_NUMBER=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.id?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+
+if is_whatsapp_registered "$AGENT_CREDS"; then
+    echo -e "\n${GREEN}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}${BOLD}     🎉  ONBOARDING COMPLETE - DEALERSHIP OS IS ONLINE!         ${NC}"
+    echo -e "${GREEN}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}Current Service Status:${NC}"
+    pm2 status
+
+    echo -e "\n${BOLD}Ready to chat with your AI Co-Pilot:${NC}"
+    if [ -n "$BOT_NUMBER" ]; then
+        if [ "$BOT_NUMBER" == "$OWNER_PHONE" ]; then
+            echo -e " 📱 Bot is linked directly to ${GREEN}YOUR phone (+$OWNER_PHONE)${NC}."
+            echo -e " 💬 Open WhatsApp and send a message to ${BOLD}YOURSELF ('Message yourself')${NC} to start chatting!"
+        else
+            echo -e " 📱 Bot Phone Number: ${GREEN}+$BOT_NUMBER${NC}"
+            echo -e " 💬 Open WhatsApp on your phone (${GREEN}+$OWNER_PHONE${NC}) and message ${GREEN}+$BOT_NUMBER${NC}!"
+        fi
+    else
+        echo -e " 💬 Open WhatsApp and send a message from ${GREEN}+$OWNER_PHONE${NC} to your bot!"
+    fi
+else
+    echo -e "\n${YELLOW}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}${BOLD}     ⚠️   ACTION REQUIRED: AI AGENT BOT NOT YET PAIRED         ${NC}"
+    echo -e "${YELLOW}${BOLD}══════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}Current Service Status:${NC}"
+    pm2 status
+    echo -e "\n${YELLOW}The AI Agent bot is NOT paired yet and will not respond to WhatsApp.${NC}"
+    echo -e "To pair your bot now, run:"
+    echo -e "   ${CYAN}cd $ROOT_DIR && npm run pair:agent${NC}"
+    echo -e "Then scan the QR code with WhatsApp (Linked Devices)."
+fi
 
 echo -e "\n${BOLD}How the System Operates:${NC}"
 echo -e " 1. All customer WhatsApp chats stay on ${GREEN}YOUR sales phone ($OWNER_PHONE)${NC}."
@@ -383,6 +427,7 @@ echo -e " 5. All touchpoints are dual-logged into CRM and diary follow-ups moved
 echo ""
 echo -e "${BOLD}Quick Commands:${NC}"
 echo -e " • Check live logs:    ${YELLOW}pm2 logs${NC}"
-echo -e " • Check monitor API:  ${YELLOW}curl -s http://127.0.0.1:9095/prospects | jq .${NC}"
+echo -e " • Pair AI Agent:      ${YELLOW}npm run pair:agent${NC}"
+echo -e " • Pair Monitor:       ${YELLOW}npm run pair:monitor${NC}"
 echo -e " • Restart services:  ${YELLOW}pm2 restart all${NC}"
 echo ""
