@@ -48,6 +48,14 @@ else
     echo -e "${GREEN}✓ Node.js detected:${NC} $NODE_VER"
 fi
 
+# Audio processing is required by voice transcription.
+if ! command -v ffmpeg &>/dev/null; then
+    echo "Installing required audio processor ffmpeg..."
+    sudo apt-get update
+    sudo apt-get install -y ffmpeg
+fi
+command -v ffmpeg &>/dev/null || { echo "ERROR: ffmpeg is required" >&2; exit 1; }
+
 # Check Python 3 and pip
 if ! command -v python3 &>/dev/null || ! command -v pip3 &>/dev/null; then
     echo -e "${YELLOW}Python 3 or pip not fully detected. Installing python3, pip, and venv...${NC}"
@@ -69,15 +77,15 @@ sudo apt-get install -y python3-requests python3-bs4 2>/dev/null || true
 # Install Python requirements
 echo -e "Checking Python packages..."
 if [ -f "$ROOT_DIR/requirements.txt" ]; then
-    if ! python3 -c "import curl_cffi, bs4, requests" &>/dev/null; then
-        echo -e "${YELLOW}Installing required Python packages (curl_cffi, beautifulsoup4, requests)...${NC}"
+    if ! python3 -c "import curl_cffi, bs4, requests, speech_recognition" &>/dev/null; then
+        echo -e "${YELLOW}Installing required Python packages (curl_cffi, beautifulsoup4, requests, SpeechRecognition)...${NC}"
         python3 -m pip install -q -r "$ROOT_DIR/requirements.txt" --break-system-packages 2>/dev/null || \
         pip3 install -q --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
         pip3 install -q --user --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
         pip3 install -q -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
-        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt" || true
+        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt"
     fi
-    echo -e "${GREEN}✓ Python dependencies verified (curl_cffi, beautifulsoup4, requests).${NC}"
+    echo -e "${GREEN}✓ Python dependencies verified (curl_cffi, beautifulsoup4, requests, SpeechRecognition).${NC}"
 fi
 
 # Check PM2
@@ -96,7 +104,7 @@ mkdir -p "$HOME/.config"
 
 # Install Node dependencies across repo
 echo -e "Installing Node modules..."
-npm install --allow-git=all --silent
+npm ci --allow-git=all --silent
 echo -e "${GREEN}✓ Node modules installed successfully.${NC}"
 
 # ------------------------------------------------------------------------------
