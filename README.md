@@ -158,7 +158,7 @@ autoagent/
 ├── LICENSE                       # MIT License
 ├── scripts/
 │   ├── pair_session.mjs          # Standalone terminal QR pairing utility
-│   └── generate_crm_sync.py      # CRM & prospect synchronization tool
+│   └── generate_crm_sync.py      # Compatibility wrapper for jax-shared/scripts/crm_autosync.py
 ├── skills/                       # Antigravity Skills
 │   ├── autohub-portal/           # Dealership CRM login, diary scrapers, quote downloaders
 │   ├── bb-used-cars/             # Used car stock search and image scraper

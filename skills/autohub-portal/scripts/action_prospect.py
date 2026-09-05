@@ -7,6 +7,7 @@ import sys
 import os
 import re
 import argparse
+from pathlib import Path
 import sqlite3
 from datetime import datetime, timedelta
 from urllib.parse import urljoin
@@ -328,7 +329,7 @@ if __name__ == "__main__":
         # --- CRM AUTO-SYNC TRIGGER ---
         import subprocess
         try:
-            subprocess.Popen(["python3", "{INSTALL_DIR}/jax-shared/scripts/crm_autosync.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve().parents[3] / "jax-shared" / "scripts" / "crm_autosync.py")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
     except Exception as e:
