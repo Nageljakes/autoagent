@@ -39,6 +39,65 @@ class Phase8Tests(unittest.TestCase):
             response.json.return_value = payload
             check(response)
 
+    def test_confirmation_normalizes_failures_and_gives_them_precedence(self):
+        check = function_from_file("action_prospect.py", "require_crm_confirmation")
+        failures = [
+            {"SUCCESS": "FALSE"}, {" Success ": " False "}, {"STATUS": "FAILED"},
+            {" status ": " Error "}, {"success": True, "STATUS": " FAILED "},
+            {"success": True, "SUCCESS": "FALSE"}, {"status": "OK", "ERROR": "denied"},
+            False, " FALSE ",
+        ]
+        for code in [200, 201]:
+            for payload in failures:
+                with self.subTest(code=code, payload=payload):
+                    response = Mock(status_code=code, text="")
+                    response.json.return_value = payload
+                    with self.assertRaises(RuntimeError):
+                        check(response)
+        for payload in [{" SUCCESS ": " TRUE "}, {"STATUS": " OK "}, {"Status": "Success"}, " TRUE "]:
+            response = Mock(status_code=201, text="")
+            response.json.return_value = payload
+            check(response)
+        response = Mock(status_code=200, text="Saved")
+        response.json.side_effect = ValueError("not JSON")
+        check(response)
+
+    def test_rejected_crm_writes_do_not_update_local_history_or_return_success(self):
+        from datetime import datetime, timedelta
+        from urllib.parse import urljoin
+        session = Mock()
+        session.get.return_value = Mock(text="", url="https://crm.invalid/entry")
+        soup = Mock()
+        soup.find.side_effect = lambda tag, *args, **kwargs: {"action": "/followup"} if tag == "form" else {"value": "fixture"}
+        upsert = Mock()
+        namespace = {
+            "re": re, "datetime": datetime, "timedelta": timedelta, "urljoin": urljoin,
+            "sanitize_dashes": lambda text: text,
+            "load_credentials_from_env_file": lambda: ("fixture", "fixture"),
+            "login": lambda *args: (session, None),
+            "find_prospect_in_db": lambda query: {"custid": "1", "name": "Fixture Customer", "phone": "0712345678"},
+            "get_base_url": lambda: "https://crm.invalid",
+            "BeautifulSoup": lambda *args: soup, "upsert_prospect": upsert,
+            "require_crm_confirmation": function_from_file("action_prospect.py", "require_crm_confirmation"),
+        }
+        action = function_from_file("action_prospect.py", "action_prospect", namespace)
+        success = Mock(status_code=200, text="")
+        success.json.return_value = {"success": True}
+        failure = Mock(status_code=200, text="")
+        failure.json.return_value = {"STATUS": "FAILED"}
+        for responses in [[failure], [success, failure]]:
+            with self.subTest(failed_post=len(responses)):
+                session.post.reset_mock()
+                session.post.side_effect = responses
+                with self.assertRaises(RuntimeError):
+                    action(custid="1", note="Fixture note", purpose="Follow up", target_date_str="2026-09-06")
+                upsert.assert_not_called()
+                self.assertEqual(session.post.call_count, len(responses))
+        session.post.side_effect = [success, success]
+        result = action(custid="1", note="Fixture note", purpose="Follow up", target_date_str="2026-09-06")
+        self.assertTrue(result["success"])
+        upsert.assert_called_once()
+
     def test_diary_reads_schema_and_latest_search_window(self):
         for filename in ["generate_diary_cards.py", "generate_all_21_diary_cards.py"]:
             requests = Mock()

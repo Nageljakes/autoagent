@@ -80,15 +80,30 @@ def require_crm_confirmation(response):
         payload = response.json()
     except ValueError:
         payload = None
+    def normalized(value):
+        return value.strip().casefold() if isinstance(value, str) else value
+
     if isinstance(payload, dict):
-        fields = {str(k).lower(): v for k, v in payload.items()}
-        if fields.get("error") or fields.get("success") in (False, "false") or fields.get("status") in ("error", "failed"):
+        # Keep every field so conflicting capitalization cannot hide a failure.
+        fields = [(str(key).strip().casefold(), normalized(value)) for key, value in payload.items()]
+        failed = any(
+            (key == "error" and value)
+            or (key == "success" and value in (False, "false"))
+            or (key == "status" and value in ("error", "failed"))
+            for key, value in fields
+        )
+        if failed:
             raise RuntimeError("CRM rejected the update")
-        confirmed = fields.get("success") is True or fields.get("status") in ("ok", "success")
+        confirmed = any(
+            (key == "success" and (value is True or value == "true"))
+            or (key == "status" and value in ("ok", "success"))
+            for key, value in fields
+        )
     else:
-        if payload is False:
+        payload = normalized(payload)
+        if payload is False or payload == "false":
             raise RuntimeError("CRM rejected the update")
-        confirmed = payload is True
+        confirmed = payload is True or payload == "true"
     if response.status_code != 200 and not confirmed:
         raise RuntimeError("CRM did not confirm the update")
 
