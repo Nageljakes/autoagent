@@ -309,6 +309,7 @@ else
 fi
 
 # Save credentials to ~/.config/dealer_credentials.env and repo .env
+mkdir -p "$(dirname "$CONFIG_ENV")"
 cat << ENV_EOF > "$CONFIG_ENV"
 # Dealership CRM / Dealer Portal Credentials
 CRM_USERNAME=$CRM_USER
