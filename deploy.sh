@@ -206,7 +206,18 @@ echo -e "\n${CYAN}${BOLD}[4/6] WhatsApp Setup - Pairing Devices${NC}"
 is_whatsapp_registered() {
     local creds_file="$1"
     if [ -f "$creds_file" ]; then
-        if grep -q '"registered":\s*true' "$creds_file" 2>/dev/null; then
+        if node -e "
+            try {
+                const fs = require('fs');
+                const c = JSON.parse(fs.readFileSync('$creds_file', 'utf8'));
+                if (c.registered === true || Boolean(c.me && c.me.id)) process.exit(0);
+            } catch (e) {}
+            process.exit(1);
+        " 2>/dev/null; then
+            return 0
+        fi
+        # Grep fallback in case node is in transition
+        if grep -qE '("registered":\s*true|"id":\s*"[0-9]+(:[0-9]+)?@s\.whatsapp\.net")' "$creds_file" 2>/dev/null; then
             return 0
         fi
     fi

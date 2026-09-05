@@ -34,7 +34,8 @@ const credsPath = path.join(authDir, 'creds.json');
 if (fs.existsSync(credsPath)) {
   try {
     const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
-    if (!creds.registered) {
+    const isAuthed = creds.registered === true || Boolean(creds.me && creds.me.id);
+    if (!isAuthed) {
       console.log("🧹 Cleaning up incomplete prior pairing attempt...");
       fs.rmSync(authDir, { recursive: true, force: true });
     }
@@ -94,13 +95,16 @@ async function runPairing() {
 
     if (connection === 'open') {
       isClosingCleanly = true;
-      console.log(`\n✅ SUCCESS: ${label} connected and authenticated successfully!`);
+      const myId = sock.user?.id?.split(':')[0] || sock.user?.id?.split('@')[0] || '';
+      console.log(`\n✅ SUCCESS: ${label} (${myId ? '+' + myId : 'registered'}) connected and authenticated successfully!`);
       console.log("Finalizing multi-device registration & syncing session...\n");
+      state.creds.registered = true;
       await saveCreds();
 
       // Wait a few seconds to let WhatsApp finish the device naming & initial sync with the phone
       setTimeout(async () => {
         try {
+          state.creds.registered = true;
           await saveCreds();
           sock.ev.removeAllListeners();
           sock.ws?.close();
@@ -141,7 +145,8 @@ process.on('SIGINT', () => {
     const credsPath = path.join(authDir, 'creds.json');
     if (fs.existsSync(credsPath)) {
       const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
-      if (!creds.registered) {
+      const isAuthed = creds.registered === true || Boolean(creds.me && creds.me.id);
+      if (!isAuthed) {
         fs.rmSync(authDir, { recursive: true, force: true });
       }
     }
