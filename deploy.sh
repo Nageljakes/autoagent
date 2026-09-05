@@ -156,24 +156,34 @@ EXISTING_TG_TOKEN=""
 EXISTING_TG_ID=""
 EXISTING_CRM_USER=""
 EXISTING_CRM_PASS=""
+EXISTING_CRM_LOGIN_URL=""
+EXISTING_CRM_BASE_URL=""
+EXISTING_OWNER_LID=""
 
 if [ -f "$ROOT_DIR/.env" ]; then
     EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_TOKEN=$(grep -E "^TELEGRAM_BOT_TOKEN=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_ID=$(grep -E "^OWNER_USER_ID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_LOGIN_URL=$(grep -E "^CRM_LOGIN_URL=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
 fi
 
 if [ -f "$CONFIG_ENV" ]; then
     [ -z "$EXISTING_CRM_USER" ] && EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_CRM_PASS" ] && EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_CRM_LOGIN_URL" ] && EXISTING_CRM_LOGIN_URL=$(grep -E "^CRM_LOGIN_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_CRM_BASE_URL" ] && EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_NAME" ] && EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_PHONE" ] && EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_OWNER_LID" ] && EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_BRANCH" ] && EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
 fi
+OWNER_LID="$EXISTING_OWNER_LID"
 
 # Helper prompt function
 prompt_val() {
@@ -214,6 +224,7 @@ CRM_USERNAME=$EXISTING_CRM_USER
 CRM_PASSWORD=$EXISTING_CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
 OWNER_PHONE_NUMBER=$OWNER_PHONE
+OWNER_LID=$OWNER_LID
 RESTRICT_TO_OWNER=true
 DEALERSHIP_NAME=$DEALERSHIP_NAME
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -296,6 +307,15 @@ else
     fi
 fi
 
+if is_whatsapp_registered "$AGENT_CREDS"; then
+    AGENT_NUMBER=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.id?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    AGENT_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    if [ "$AGENT_NUMBER" == "$OWNER_PHONE" ] && [ -n "$AGENT_LID" ]; then
+        OWNER_LID="$AGENT_LID"
+        echo -e "${GREEN}✓ Single-phone setup detected: auto-configured Owner WhatsApp LID:${NC} $OWNER_LID"
+    fi
+fi
+
 # Part B: Salesperson Companion Monitor (Where Customer Chats Happen) - OPTIONAL
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}STEP 4B: SALESPERSON COMPANION MONITOR (OPTIONAL)${NC}"
@@ -339,6 +359,14 @@ else
     fi
 fi
 
+if is_whatsapp_registered "$MONITOR_CREDS"; then
+    DETECTED_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$MONITOR_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    if [ -n "$DETECTED_LID" ]; then
+        OWNER_LID="$DETECTED_LID"
+        echo -e "${GREEN}✓ Auto-detected Salesperson WhatsApp LID identity:${NC} $OWNER_LID"
+    fi
+fi
+
 # ------------------------------------------------------------------------------
 # STEP 5: Dealership CRM / Portal Onboarding
 # ------------------------------------------------------------------------------
@@ -348,6 +376,8 @@ echo -e "Connect to your dealership CRM portal (dealer-portal.example.com / deal
 echo -e "to automate daily diary follow-ups, dual-logging, and customer records."
 echo -e "${BLUE}──────────────────────────────────────────────────────────────────${NC}"
 
+CRM_LOGIN_URL=$(prompt_val "Dealership CRM Portal / Login URL (e.g. https://nissandrive.co.za)" "${EXISTING_CRM_LOGIN_URL}" true)
+CRM_BASE_URL=$(prompt_val "Dealership CRM Base URL (optional, press enter to auto-detect)" "${EXISTING_CRM_BASE_URL}" false)
 CRM_USER=$(prompt_val "Dealership CRM Username (press enter to skip)" "$EXISTING_CRM_USER" false)
 
 if [ -n "$CRM_USER" ]; then
@@ -368,33 +398,111 @@ fi
 mkdir -p "$(dirname "$CONFIG_ENV")"
 cat << ENV_EOF > "$CONFIG_ENV"
 # Dealership CRM / Dealer Portal Credentials
-CRM_USERNAME=$CRM_USER
-CRM_PASSWORD=$CRM_PASS
-SALESPERSON_NAME=$SALESPERSON_NAME
-OWNER_PHONE_NUMBER=$OWNER_PHONE
-DEALERSHIP_NAME=$DEALERSHIP_NAME
+CRM_LOGIN_URL="$CRM_LOGIN_URL"
+CRM_BASE_URL="$CRM_BASE_URL"
+CRM_USERNAME="$CRM_USER"
+CRM_PASSWORD="$CRM_PASS"
+SALESPERSON_NAME="$SALESPERSON_NAME"
+OWNER_PHONE_NUMBER="$OWNER_PHONE"
+OWNER_LID="$OWNER_LID"
+DEALERSHIP_NAME="$DEALERSHIP_NAME"
 ENV_EOF
 chmod 600 "$CONFIG_ENV"
 
 cat << ENV_LOCAL > "$ROOT_DIR/.env"
 # JAX Dealership OS Runtime Environment
-CRM_USERNAME=$CRM_USER
-CRM_PASSWORD=$CRM_PASS
-SALESPERSON_NAME=$SALESPERSON_NAME
-OWNER_PHONE_NUMBER=$OWNER_PHONE
+CRM_LOGIN_URL="$CRM_LOGIN_URL"
+CRM_BASE_URL="$CRM_BASE_URL"
+CRM_USERNAME="$CRM_USER"
+CRM_PASSWORD="$CRM_PASS"
+SALESPERSON_NAME="$SALESPERSON_NAME"
+OWNER_PHONE_NUMBER="$OWNER_PHONE"
+OWNER_LID="$OWNER_LID"
 RESTRICT_TO_OWNER=true
-DEALERSHIP_NAME=$DEALERSHIP_NAME
-TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-OWNER_USER_ID=$TELEGRAM_OWNER_ID
+DEALERSHIP_NAME="$DEALERSHIP_NAME"
+TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN"
+OWNER_USER_ID="$TELEGRAM_OWNER_ID"
 API_PORT=9095
 HEALTH_PORT=9090
-SQLITE_DB_PATH=$ROOT_DIR/jax-shared/data/prospects.db
-AUTH_DIR=$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor
-AGENT_AUTH_DIR=$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys
+SQLITE_DB_PATH="$ROOT_DIR/jax-shared/data/prospects.db"
+AUTH_DIR="$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"
+AGENT_AUTH_DIR="$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"
 ENV_LOCAL
 chmod 600 "$ROOT_DIR/.env"
 
 echo -e "${GREEN}✓ Credentials stored securely in ~/.config/dealer_credentials.env${NC}"
+
+# ------------------------------------------------------------------------------
+# STEP 5.5: Personalize Agent Workspace, System Instructions & Skills
+# ------------------------------------------------------------------------------
+echo -e "\n${CYAN}${BOLD}[5.5] Personalizing Agent Workspaces & Instructions for ${SALESPERSON_NAME}...${NC}"
+
+# Ensure workspaces exist
+mkdir -p "$ROOT_DIR/jax-whatsapp-agent/workspace"
+mkdir -p "$ROOT_DIR/jax-telegram-agent/workspace"
+
+# Reset template files from git if clean checkout is available to allow re-running deploy.sh
+git checkout -- "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-whatsapp-agent/workspace/GEMINI.md" "$ROOT_DIR/jax-telegram-agent/workspace/GEMINI.md" "$ROOT_DIR/skills/" 2>/dev/null || true
+
+# Sync latest root GEMINI.md template into workspaces
+[ -f "$ROOT_DIR/GEMINI.md" ] && cp -f "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-whatsapp-agent/workspace/GEMINI.md"
+[ -f "$ROOT_DIR/GEMINI.md" ] && cp -f "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-telegram-agent/workspace/GEMINI.md"
+
+export ROOT_DIR SALESPERSON_NAME DEALERSHIP_NAME CRM_USER CRM_LOGIN_URL OWNER_PHONE OWNER_LID
+python3 - << 'RENDER_EOF'
+import os
+import glob
+
+root_dir = os.environ.get("ROOT_DIR", os.getcwd())
+salesperson = os.environ.get("SALESPERSON_NAME", "Sales Executive")
+dealership = os.environ.get("DEALERSHIP_NAME", "Dealership")
+dealership_alt = f"{dealership} Pre-Owned"
+dealership_sec = dealership
+crm_user = os.environ.get("CRM_USER", "")
+crm_url = os.environ.get("CRM_LOGIN_URL", "")
+owner_phone = os.environ.get("OWNER_PHONE", "")
+owner_lid = os.environ.get("OWNER_LID", "")
+
+replacements = {
+    "{SALESPERSON_NAME}": salesperson,
+    "{DEALERSHIP_NAME}": dealership,
+    "{DEALERSHIP_NAME_ALT}": dealership_alt,
+    "{DEALERSHIP_NAME_SECONDARY}": dealership_sec,
+    "{CRM_USERNAME}": crm_user,
+    "{CRM_LOGIN_URL}": crm_url,
+    "{OWNER_PHONE}": owner_phone,
+    "{OWNER_LID}": owner_lid,
+    "{INSTALL_DIR}": root_dir,
+}
+
+targets = [
+    os.path.join(root_dir, "GEMINI.md"),
+    os.path.join(root_dir, "jax-whatsapp-agent/workspace/GEMINI.md"),
+    os.path.join(root_dir, "jax-telegram-agent/workspace/GEMINI.md"),
+]
+for p in glob.glob(os.path.join(root_dir, "skills/**/*.md"), recursive=True):
+    targets.append(p)
+
+rendered_count = 0
+for filepath in set(targets):
+    if os.path.isfile(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            modified = content
+            for k, v in replacements.items():
+                if v:
+                    modified = modified.replace(k, str(v))
+            if modified != content:
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(modified)
+                rendered_count += 1
+        except Exception as err:
+            print(f"  ⚠️ Could not render {os.path.relpath(filepath, root_dir)}: {err}")
+
+print(f"  ✓ Rendered salesperson profile ({salesperson} @ {dealership}) across instructions & skills ({rendered_count} files).")
+RENDER_EOF
+
 
 # Test CRM connection only if credentials were provided
 if [ -n "$CRM_USER" ] && [ -n "$CRM_PASS" ]; then

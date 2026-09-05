@@ -17,7 +17,8 @@ INSTALL_DIR="$HOME/autoagent"
 if [ -d "$INSTALL_DIR" ]; then
     echo -e "\033[1;33mExisting installation found at $INSTALL_DIR. Updating...\033[0m"
     cd "$INSTALL_DIR"
-    git pull origin main
+    git checkout -- GEMINI.md skills/ jax-*/workspace/GEMINI.md 2>/dev/null || true
+    git pull origin main || (git fetch origin main && git reset --hard origin/main)
 else
     echo -e "\033[1;34mCloning repository to $INSTALL_DIR...\033[0m"
     REPO_URL="${AUTOAGENT_REPO_URL:-https://github.com/Nageljakes/autoagent.git}"
