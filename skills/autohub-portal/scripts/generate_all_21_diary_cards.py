@@ -34,8 +34,8 @@ def get_wa_history(phone, name, crm_notes):
                     recent = messages[-4:]
                     lines = []
                     for m in recent:
-                        sender = os.getenv("SALESPERSON_NAME", "Sales Advisor") if m.get("fromMe") else "Customer"
-                        body = m.get("body", "").strip().replace("\n", " ")
+                        sender = os.getenv("SALESPERSON_NAME", "Sales Advisor") if m.get("from_me") else "Customer"
+                        body = (m.get("content") or "").strip().replace("\n", " ")
                         if len(body) > 100:
                             body = body[:97] + "..."
                         lines.append(f"{sender}: {body}")
@@ -65,7 +65,7 @@ def get_wa_history(phone, name, crm_notes):
                         valid_prospect_msgs.append(m)
 
                     if valid_prospect_msgs:
-                        recent = valid_prospect_msgs[-3:]
+                        recent = list(reversed(valid_prospect_msgs[:3]))
                         lines = []
                         for m in recent:
                             sender = os.getenv("SALESPERSON_NAME", "Sales Advisor") if m.get("from_me") else (m.get("sender_name") or "Customer")
