@@ -34,24 +34,16 @@ from curl_cffi import requests
 from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).parent))
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
+from customer_identity import lookup_customer
 
 PROSPECT_DB = Path("data/scratch/prospect_history.db")
 QUOTES_DIR = Path("jax-shared/data/quotes")
 
 
 def find_custid_by_name(name: str):
-    if not PROSPECT_DB.exists():
-        return None
-    conn = sqlite3.connect(str(PROSPECT_DB))
-    try:
-        row = conn.execute(
-            "SELECT custid, name FROM prospects WHERE name LIKE ? ORDER BY last_updated DESC LIMIT 1",
-            (f"%{name}%",)
-        ).fetchone()
-        return row[0] if row else None
-    finally:
-        conn.close()
+    customer = lookup_customer(PROSPECT_DB, name)
+    return customer["custid"] if customer else None
 
 
 def get_quote(custid: str, ref: str = None, impersonate: str = "chrome124"):
@@ -68,7 +60,7 @@ def get_quote(custid: str, ref: str = None, impersonate: str = "chrome124"):
         sg_input = soup.find("input", {"name": "sg"})
         sg = sg_input["value"] if sg_input else ""
 
-    modal_url = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={custid}"
+    modal_url = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&sg={sg}&custid={custid}'
     modal_resp = session.get(modal_url, timeout=20)
     modal_soup = BeautifulSoup(modal_resp.text, "html.parser")
 
@@ -98,7 +90,7 @@ def get_quote(custid: str, ref: str = None, impersonate: str = "chrome124"):
         chosen = candidates[0]
 
     frame_url = (
-        f"https://egm.dealer-crm.co.za/index.cfm?page=../southafrica/pages/quote_frame.cfm"
+        f'{get_base_url()}/index.cfm?page=../southafrica/pages/quote_frame.cfm'
         f"&sg={sg}&custId={custid}&documenttype={chosen['docType']}"
         f"&quoteId={chosen['quoteId']}&quote_version={chosen['ver']}"
     )

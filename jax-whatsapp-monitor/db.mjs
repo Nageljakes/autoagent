@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
+import { normalizeWhatsAppJid } from '../jax-shared/owner-identity.mjs';
 
 const DB_PATH = process.env.SQLITE_DB_PATH || path.resolve('./data/prospects.db');
 
@@ -219,146 +220,59 @@ export function saveMessage({ id, jid, phoneNumber, fromMe, senderName, messageT
  * Get conversation history for a prospect/coworker by phone number, JID, LID, or Name
  */
 export function getProspectHistory(phoneOrQuery, limit = 50, offset = 0) {
-  if (!phoneOrQuery) {
-    return { contact: null, messages: [], count: 0 };
+  const query = String(phoneOrQuery || '').trim();
+  const empty = { contact: null, matched_contacts: [], matched_jids: [], matched_phones: [], count: 0, messages: [] };
+  if (!query) return empty;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500 || !Number.isInteger(offset) || offset < 0) {
+    const error = new Error('limit must be 1..500 and offset must be nonnegative');
+    error.status = 400;
+    throw error;
   }
-
-  const queryStr = String(phoneOrQuery).trim();
-  const isDigitsOnly = /^[0-9+ \-]+$/.test(queryStr);
-  const cleanDigits = queryStr.replace(/[^0-9]/g, '');
-
-  const matchingJids = new Set();
-  const matchingPhones = new Set();
-  let primaryContact = null;
-  const matchedContacts = [];
-
-  if (isDigitsOnly && cleanDigits.length >= 7) {
-    // Generate South African phone variants (e.g. 072... vs 2772...)
-    const variants = [cleanDigits];
-    if (cleanDigits.startsWith('0') && cleanDigits.length === 10) {
-      variants.push('27' + cleanDigits.slice(1));
-    } else if (cleanDigits.startsWith('27') && cleanDigits.length === 11) {
-      variants.push('0' + cleanDigits.slice(2));
+  let contacts = [];
+  const jids = new Set();
+  if (query.includes('@')) {
+    const jid = normalizeWhatsAppJid(query);
+    if (!jid) {
+      const error = new Error('A direct phone or LID identity is required');
+      error.status = 400;
+      throw error;
     }
-
-    for (const v of variants) {
-      matchingPhones.add(v);
-      matchingJids.add(`${v}@s.whatsapp.net`);
-    }
-
-    // Look up existing prospects matching any phone variant
+    jids.add(jid);
+    contacts = db.prepare('SELECT * FROM prospects WHERE jid = ?').all(jid);
+  } else if (/^\+?\d[\d ()-]*$/.test(query)) {
+    const digits = query.replace(/\D/g, '');
+    const variants = [digits];
+    if (digits.startsWith('0') && digits.length === 10) variants.push('27' + digits.slice(1));
+    if (digits.startsWith('27') && digits.length === 11) variants.push('0' + digits.slice(2));
+    for (const phone of variants) jids.add(`${phone}@s.whatsapp.net`);
     const placeholders = variants.map(() => '?').join(',');
-    const found = db.prepare(`
-      SELECT * FROM prospects 
-      WHERE phone_number IN (${placeholders}) 
-         OR jid IN (${placeholders})
-    `).all(...variants, ...variants);
-
-    for (const row of found) {
-      if (!primaryContact) primaryContact = row;
-      matchedContacts.push(row);
-      if (row.jid) matchingJids.add(row.jid);
-      if (row.phone_number) matchingPhones.add(row.phone_number);
-
-      // If this contact has a name, also search for any linked LIDs or records with matching name
-      if (row.name && row.name.length >= 3 && !['Contact', 'You / Agent'].includes(row.name)) {
-        const nameMatches = db.prepare(`
-          SELECT * FROM prospects 
-          WHERE (name LIKE ? OR notes LIKE ? OR tags LIKE ?)
-            AND contact_type = 'prospect'
-        `).all(`%${row.name}%`, `%${row.name}%`, `%${row.name}%`);
-
-        for (const nm of nameMatches) {
-          if (nm.jid) matchingJids.add(nm.jid);
-          if (nm.phone_number) matchingPhones.add(nm.phone_number);
-          matchedContacts.push(nm);
-        }
-      }
-    }
+    // Only phone identities can match phone digits. LIDs are never phone numbers.
+    contacts = db.prepare(`SELECT * FROM prospects WHERE jid LIKE '%@s.whatsapp.net'
+      AND (phone_number IN (${placeholders}) OR jid IN (${placeholders}))`).all(...variants, ...jids);
   } else {
-    // Search by Name, JID, or LID
-    if (queryStr.includes('@')) {
-      matchingJids.add(queryStr);
-      if (cleanDigits) matchingPhones.add(cleanDigits);
+    // Names locate candidates; they never establish links between identities.
+    contacts = db.prepare(`SELECT * FROM prospects WHERE instr(lower(name), lower(?)) > 0
+      AND (jid LIKE '%@s.whatsapp.net' OR jid LIKE '%@lid') LIMIT 2`).all(query);
+    if (contacts.length > 1) {
+      const error = new Error('Multiple customers match. Use an exact phone number or LID.');
+      error.status = 409;
+      error.code = 'AMBIGUOUS_CUSTOMER';
+      throw error;
     }
-
-    const found = db.prepare(`
-      SELECT * FROM prospects 
-      WHERE name LIKE ? 
-         OR tags LIKE ? 
-         OR notes LIKE ? 
-         OR jid = ? 
-         OR phone_number = ?
-    `).all(`%${queryStr}%`, `%${queryStr}%`, `%${queryStr}%`, queryStr, cleanDigits || queryStr);
-
-    for (const row of found) {
-      if (!primaryContact) primaryContact = row;
-      matchedContacts.push(row);
-      if (row.jid) matchingJids.add(row.jid);
-      if (row.phone_number) matchingPhones.add(row.phone_number);
-
-      // If matched row has a linked phone in tags (e.g. lid_link:27821234567)
-      if (row.tags && row.tags.includes('lid_link:')) {
-        const m = row.tags.match(/lid_link:(\d+)/);
-        if (m) {
-          matchingPhones.add(m[1]);
-          matchingJids.add(`${m[1]}@s.whatsapp.net`);
-        }
-      }
-    }
+    if (!contacts.length) return empty;
   }
-
-  // Fallback if no contact record exists yet
-  if (matchingJids.size === 0) {
-    if (cleanDigits) {
-      matchingPhones.add(cleanDigits);
-      matchingJids.add(queryStr.includes('@') ? queryStr : `${cleanDigits}@s.whatsapp.net`);
-    } else {
-      matchingJids.add(queryStr);
-    }
-  }
-
-  const jidList = Array.from(matchingJids);
-  const phoneList = Array.from(matchingPhones);
-
-  const clauses = [];
-  const params = [];
-
-  if (phoneList.length > 0) {
-    const pHolders = phoneList.map(() => '?').join(',');
-    clauses.push(`phone_number IN (${pHolders})`);
-    params.push(...phoneList);
-  }
-  if (jidList.length > 0) {
-    const jHolders = jidList.map(() => '?').join(',');
-    clauses.push(`prospect_jid IN (${jHolders})`);
-    params.push(...jidList);
-  }
-
-  const sql = `
-    SELECT 
-      id,
-      from_me,
-      sender_name,
-      message_type,
-      content,
-      media_url,
-      timestamp,
-      datetime(timestamp, 'unixepoch', 'localtime') as message_time
-    FROM messages
-    WHERE (${clauses.join(' OR ')})
-    ORDER BY timestamp ASC
-    LIMIT ? OFFSET ?
-  `;
-  params.push(limit, offset);
-
-  const messages = db.prepare(sql).all(...params);
-
+  for (const contact of contacts) jids.add(contact.jid);
+  const ids = [...jids];
+  const placeholders = ids.map(() => '?').join(',');
+  const messages = db.prepare(`SELECT id, from_me, sender_name, message_type, content, media_url,
+      timestamp, datetime(timestamp, 'unixepoch', 'localtime') as message_time
+    FROM messages WHERE prospect_jid IN (${placeholders})
+    ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`).all(...ids, limit, offset).reverse();
   return {
-    contact: primaryContact || { phone_number: cleanDigits, jid: Array.from(matchingJids)[0], contact_type: 'prospect' },
-    matched_contacts: matchedContacts,
-    matched_jids: jidList,
-    matched_phones: phoneList,
+    contact: contacts[0] || {jid:ids[0], phone_number:query.includes('@') ? null : query.replace(/\D/g, ''), contact_type:'prospect'},
+    matched_contacts: contacts,
+    matched_jids: ids,
+    matched_phones: contacts.filter(c => c.jid.endsWith('@s.whatsapp.net')).map(c => c.phone_number).filter(Boolean),
     count: messages.length,
     messages
   };

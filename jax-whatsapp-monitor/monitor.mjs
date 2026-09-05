@@ -462,7 +462,7 @@ app.get('/history/:phone', (req, res) => {
     const history = getProspectHistory(phone, limit, offset);
     res.json({ success: true, ...history });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(err.status || 500).json({ success: false, error: err.message, code: err.code });
   }
 });
 
@@ -765,7 +765,7 @@ app.get('/context/:query', (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(err.status || 500).json({ success: false, error: err.message, code: err.code });
   }
 });
 

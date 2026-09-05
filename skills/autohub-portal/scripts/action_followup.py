@@ -23,6 +23,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 AUTOHUB_SCRIPTS_DIR = os.getenv("AUTOHUB_SCRIPTS_DIR", os.path.abspath(os.path.join(SCRIPT_DIR, "../../autohub-portal/scripts")))
 sys.path.append(AUTOHUB_SCRIPTS_DIR)
 sys.path.append(SCRIPT_DIR)
+from customer_identity import lookup_customer, normalize_phone
 
 try:
     from action_prospect import action_prospect, find_prospect_in_db
@@ -34,6 +35,12 @@ except ImportError:
 
 WA_DB_PATH = "jax-shared/data/prospects.db"
 MONITOR_API_BASE = "http://127.0.0.1:9095"
+
+SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Sales Executive")
+DEALERSHIP_NAME = os.getenv("DEALERSHIP_NAME", "Dealership")
+CRM_USERNAME = os.getenv("CRM_USERNAME", "")
+CRM_USERNAME_SHORT = CRM_USERNAME.split()[0] if CRM_USERNAME else ""
+CRM_USERNAME_LAST = CRM_USERNAME.split()[-1] if len(CRM_USERNAME.split()) > 1 else ""
 
 # Comprehensive South African Indigenous African Names and Surnames
 AFRICAN_FIRST_NAMES = {
@@ -273,11 +280,13 @@ def sanitize_dashes(text: str) -> str:
     return re.sub(r"[\u2014\u2013\u2015]", "-", text)
 
 def enforce_salesperson_identity(text: str) -> str:
-    """Enforce {SALESPERSON_NAME} identity: Replaces {CRM_USERNAME_SHORT} / {CRM_USERNAME} with {SALESPERSON_NAME}."""
+    """Enforce SALESPERSON_NAME identity: Replaces CRM username with SALESPERSON_NAME."""
     if not text:
         return text
-    text = re.sub(r"\b{CRM_USERNAME_SHORT}\s+{CRM_USERNAME_LAST}\b", {SALESPERSON_NAME}, text, flags=re.IGNORECASE)
-    text = re.sub(r"\b{CRM_USERNAME_SHORT}\b", {SALESPERSON_NAME}, text, flags=re.IGNORECASE)
+    if CRM_USERNAME_SHORT:
+        if CRM_USERNAME_LAST:
+            text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\s+{re.escape(CRM_USERNAME_LAST)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
+        text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
     return text
 
 def mask_phone(phone: str) -> str:
@@ -376,11 +385,11 @@ def fetch_phone_from_crm_era(custid: str) -> tuple[str, str]:
         return "", ""
     try:
         from bs4 import BeautifulSoup
-        from portal_login import login, load_credentials_from_env_file
+        from portal_login import get_base_url, login, load_credentials_from_env_file
         
         user, pwd = load_credentials_from_env_file()
         session, res = login(user, pwd)
-        url = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}"
+        url = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}'
         r = session.get(url, timeout=15)
         soup = BeautifulSoup(r.text, "html.parser")
         
@@ -458,32 +467,13 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
         context["vehicle"] = q_veh
 
     # 1. dealership CRM Mirror Lookup
-    crm_info = None
-    if find_prospect_in_db:
-        try:
-            crm_info = find_prospect_in_db(query)
-            if not crm_info and clean_q and clean_q != query:
-                crm_info = find_prospect_in_db(clean_q)
-        except Exception:
-            pass
-
-    if not crm_info and os.path.exists(CRM_DB_PATH):
-        try:
-            with sqlite3.connect(f"file:{CRM_DB_PATH}?immutable=1", uri=True) as conn:
-                cur = conn.cursor()
-                if is_phone_query:
-                    v1 = clean_digits
-                    v2 = "27" + clean_digits[1:] if clean_digits.startswith("0") else ("0" + clean_digits[2:] if clean_digits.startswith("27") else clean_digits)
-                    cur.execute("SELECT custid, name, phone, vehicle_model FROM prospects WHERE phone LIKE ? OR phone LIKE ? LIMIT 1", (f"%{v1}%", f"%{v2}%"))
-                else:
-                    q_target = clean_q if clean_q else query.strip()
-                    q_wild = f"%{q_target}%"
-                    cur.execute("SELECT custid, name, phone, vehicle_model FROM prospects WHERE name LIKE ? OR phone LIKE ? LIMIT 1", (q_wild, q_wild))
-                row = cur.fetchone()
-                if row:
-                    crm_info = {"custid": row[0], "name": row[1], "phone": row[2], "vehicle": row[3]}
-        except Exception:
-            pass
+    # Ambiguity is a hard stop; never retry through a first-match fallback.
+    crm_info = lookup_customer(CRM_DB_PATH, query)
+    if not crm_info and clean_q and clean_q != query:
+        crm_info = lookup_customer(CRM_DB_PATH, clean_q)
+    if crm_info and explicit_phone and crm_info.get("phone"):
+        if normalize_phone(explicit_phone) != normalize_phone(crm_info["phone"]):
+            raise ValueError("Explicit recipient does not match the resolved CRM customer")
 
     if crm_info:
         if not context["custid"]: context["custid"] = crm_info.get("custid", "")
@@ -526,25 +516,7 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
         if "language_analysis" in api_res:
             context["language_analysis"] = api_res["language_analysis"]
     else:
-        # Fallback to direct SQLite read from prospects.db
-        if os.path.exists(WA_DB_PATH):
-            try:
-                with sqlite3.connect(f"file:{WA_DB_PATH}?immutable=1", uri=True) as conn:
-                    cur = conn.cursor()
-                    target_q = context["phone"] or context["name"] or query
-                    q_wild = f"%{target_q.strip()}%"
-                    cur.execute("SELECT jid, phone_number, name FROM prospects WHERE name LIKE ? OR phone_number LIKE ? LIMIT 1", (q_wild, q_wild))
-                    row = cur.fetchone()
-                    if row:
-                        if not context["name"] and row[2]:
-                            cn, _ = clean_customer_name(row[2])
-                            if cn: context["name"] = cn
-                        if not context["phone"] and row[1]: context["phone"] = row[1]
-                        jid = row[0]
-                        cur.execute("SELECT from_me, content, datetime(timestamp, 'unixepoch', 'localtime') FROM messages WHERE prospect_jid = ? OR phone_number = ? ORDER BY timestamp DESC LIMIT 5", (jid, row[1]))
-                        context["whatsapp_messages"] = [{"from_me": r[0], "content": r[1], "message_time": r[2]} for r in cur.fetchall()]
-            except Exception:
-                pass
+        raise ValueError("Customer context unavailable or ambiguous; outreach stopped: " + str(api_res.get("error", "bridge lookup failed")))
 
     # Normalize phone to South African standard (27...)
     raw_p = re.sub(r"[^0-9]", "", context["phone"] or (clean_digits if is_phone_query else ""))

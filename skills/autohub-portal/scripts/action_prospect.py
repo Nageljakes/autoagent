@@ -15,37 +15,22 @@ from bs4 import BeautifulSoup
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(SCRIPT_DIR)
 
-from portal_login import login, load_credentials_from_env_file
+from portal_login import get_base_url, login, load_credentials_from_env_file
 from prospect_db import init_db, upsert_prospect, DB_PATH
+from customer_identity import lookup_customer, AmbiguousCustomerError
 
 def find_prospect_in_db(query: str):
-    """Finds prospect in local database by name, custid, or phone."""
-    if not os.path.exists(DB_PATH):
-        return None
-    conn = sqlite3.connect(f"file:{DB_PATH}?immutable=1", uri=True)
-    cursor = conn.cursor()
-    
-    # Try exact custid
-    cursor.execute("SELECT custid, name, phone, vehicle_model, contact_count FROM prospects WHERE custid = ?", (query.strip(),))
-    row = cursor.fetchone()
-    if row:
-        conn.close()
-        return {"custid": row[0], "name": row[1], "phone": row[2], "vehicle": row[3], "contact_count": row[4]}
-    
-    # Try partial name or phone match
-    q = f"%{query.strip()}%"
-    cursor.execute("SELECT custid, name, phone, vehicle_model, contact_count FROM prospects WHERE name LIKE ? OR phone LIKE ?", (q, q))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return {"custid": row[0], "name": row[1], "phone": row[2], "vehicle": row[3], "contact_count": row[4]}
-    return None
+    return lookup_customer(DB_PATH, query)
+
 
 def find_prospect_in_diary(session, query: str):
     """Searches active diary page HTML for a customer matching query."""
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm", timeout=20)
+    r_diary = session.get((get_base_url() + "/index.cfm?page=pages/entries.cfm"), timeout=20)
     soup = BeautifulSoup(r_diary.text, "html.parser")
     
+    if not query or not query.strip():
+        raise ValueError("Customer query must not be empty")
+    matches = {}
     for form in soup.find_all("form"):
         action = form.get("action", "")
         if "adddiaryentry.cfm" in action:
@@ -63,8 +48,10 @@ def find_prospect_in_diary(session, query: str):
                 contno = int(contno_tag.get("value")) if contno_tag and contno_tag.get("value").isdigit() else 1
                 
                 if (query.lower() in name.lower()) or (query in phone) or (query == cid):
-                    return {"custid": cid, "name": name, "phone": phone, "purpose": purpose, "contact_count": contno}
-    return None
+                    matches[cid] = {"custid": cid, "name": name, "phone": phone, "purpose": purpose, "contact_count": contno}
+    if len(matches) > 1:
+        raise AmbiguousCustomerError("Multiple diary customers match; specify the exact customer ID.")
+    return next(iter(matches.values()), None)
 
 def sanitize_dashes(text: str) -> str:
     """Replaces long dashes (em dash, en dash, horizontal bar) with standard short hyphens."""
@@ -139,7 +126,7 @@ def action_prospect(
     # If phone is empty, fetch mobile directly from Dealer CRM ERA
     if not phone and cid:
         try:
-            url_era = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={cid}"
+            url_era = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={cid}'
             r_era = session.get(url_era, timeout=15)
             soup_era = BeautifulSoup(r_era.text, "html.parser")
             mobile_inp = soup_era.find("input", {"name": "mobile"})
@@ -165,7 +152,7 @@ def action_prospect(
         purpose = determine_purpose(note, cust_info.get("purpose", ""))
 
     # 4. Fetch fresh session key (sg)
-    r_diary = session.get("https://egm.dealer-crm.co.za/index.cfm?page=pages/entries.cfm", timeout=20)
+    r_diary = session.get((get_base_url() + "/index.cfm?page=pages/entries.cfm"), timeout=20)
     soup_diary = BeautifulSoup(r_diary.text, "html.parser")
     sg_input = soup_diary.find("input", {"id": "sg"}) or soup_diary.find("input", {"name": "sg"})
     sg = sg_input.get("value") if sg_input else ""
@@ -174,7 +161,7 @@ def action_prospect(
         sg = m.group(1) if m else ""
 
     # 5. GET adddiaryentry.cfm
-    url_add = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/adddiaryentry.cfm&custid={cid}&sg={sg}"
+    url_add = f'{get_base_url()}/index.cfm?page=pages/adddiaryentry.cfm&custid={cid}&sg={sg}'
     r_add = session.get(url_add, timeout=20)
     soup_add = BeautifulSoup(r_add.text, "html.parser")
 
@@ -227,7 +214,7 @@ def action_prospect(
     }
 
     headers = {
-        "Origin": "https://egm.dealer-crm.co.za",
+        "Origin": get_base_url(),
         "Referer": url_add,
     }
 
@@ -239,7 +226,7 @@ def action_prospect(
     # 6. Also log permanent note directly to Customer ERA Notes section (Red Add Note button)
     if note:
         try:
-            url_cfc = "https://egm.dealer-crm.co.za/model/com/southafrica/customer/customer_sa.cfc"
+            url_cfc = (get_base_url() + "/model/com/southafrica/customer/customer_sa.cfc")
             session.post(url_cfc, data={
                 "method": "addCustomerNotes",
                 "companyId": 5784,
