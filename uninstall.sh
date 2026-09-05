@@ -4,11 +4,6 @@
 # ==============================================================================
 set -e
 
-# Reconnect stdin to controlling terminal if script was piped or detached
-if [ ! -t 0 ] && [ -e /dev/tty ]; then
-    exec < /dev/tty
-fi
-
 # ANSI Colors
 CYAN='\033[1;36m'
 GREEN='\033[1;32m'
@@ -29,11 +24,13 @@ for arg in "$@"; do
 done
 
 # Confirm with user if interactive and not forced
-if [ "$FORCE" = false ] && [ -t 0 ]; then
-    read -r -p "Are you sure you want to completely remove AutoAgent and delete all local credentials/data? (y/N): " CONFIRM
-    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Uninstallation canceled.${NC}"
-        exit 0
+if [ "$FORCE" = false ]; then
+    if [ -r /dev/tty ]; then
+        read -r -p "Are you sure you want to completely remove AutoAgent and delete all local credentials/data? (y/N): " CONFIRM < /dev/tty || CONFIRM="n"
+        if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Uninstallation canceled.${NC}"
+            exit 0
+        fi
     fi
 fi
 
