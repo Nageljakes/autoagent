@@ -29,6 +29,11 @@ const log = createLogger('telegram');
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OWNER_USER_ID = process.env.OWNER_USER_ID || '';
 
+const RESTRICT_TO_OWNER = process.env.RESTRICT_TO_OWNER !== 'false';
+if (!OWNER_USER_ID) {
+  log.warn('[SECURITY] OWNER_USER_ID is not configured in .env. Telegram bot will reject all incoming messages if RESTRICT_TO_OWNER is true.');
+}
+
 const AGY_BIN = process.env.AGY_BIN || 'agy';
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.env.HOME || '.';
 const AUDIO_PROCESSOR = path.resolve(__dirname, 'audio_processor.py');
@@ -498,6 +503,12 @@ bot.use(async (ctx, next) => {
 
   const userId = ctx.from?.id?.toString();
   const userName = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'unknown');
+  
+  if (RESTRICT_TO_OWNER && !isOwner(userId)) {
+    log.warn(`[BLOCKED] Message from non-owner Telegram user ${userId} (${userName}) ignored.`);
+    return;
+  }
+
   const role = isOwner(userId) ? '👑 CREATOR/OWNER' : '👤 GUEST';
   
   log.info(`Incoming message from ${role} ${userName}`, { userId, role });

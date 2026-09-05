@@ -881,12 +881,6 @@ _${imgPrompt}_`
         continue;
       }
 
-      if (trimmedText.startsWith('/claimowner') || trimmedText.startsWith('/auth')) {
-        authenticatedOwners.add(senderId);
-        await safeSendMessage(jid, { text: '👑 *Creator Authenticated!* You have full system access, VM control, and workspace privileges on WhatsApp.' });
-        continue;
-      }
-
       // Built-in commands
       if (trimmedText === '/reset' || trimmedText === '/new' || trimmedText === '/clear') {
         isNewSession.set(jid, true);
