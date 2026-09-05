@@ -203,6 +203,16 @@ TELEGRAM_OWNER_ID=$(prompt_val "Telegram Owner User ID (press enter to skip)" "$
 # ------------------------------------------------------------------------------
 echo -e "\n${CYAN}${BOLD}[4/6] WhatsApp Setup - Pairing Devices${NC}"
 
+is_whatsapp_registered() {
+    local creds_file="$1"
+    if [ -f "$creds_file" ]; then
+        if grep -q '"registered":\s*true' "$creds_file" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
 # Part A: Salesperson Companion Monitor (Where Customer Chats Happen)
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}QR CODE 1: SALESPERSON COMPANION MONITOR (YOUR PHONE)${NC}"
@@ -213,7 +223,7 @@ echo -e " • Sends customer follow-ups ONLY when you explicitly command the age
 echo -e "${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 
 MONITOR_CREDS="$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor/creds.json"
-if [ -f "$MONITOR_CREDS" ]; then
+if is_whatsapp_registered "$MONITOR_CREDS"; then
     echo -e "${GREEN}✓ Existing WhatsApp session detected for Salesperson Monitor.${NC}"
     read -r -p "Do you want to re-pair the Salesperson WhatsApp Monitor? (y/N): " REPAIR_MONITOR || true
     if [[ "$REPAIR_MONITOR" =~ ^[Yy]$ ]]; then
@@ -221,11 +231,18 @@ if [ -f "$MONITOR_CREDS" ]; then
         node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
     fi
 else
+    rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
     echo -e "Connects to YOUR personal phone ($OWNER_PHONE) to passively mirror chats."
     read -r -p "Scan QR code to pair your phone now? (y/N): " PAIR_NOW_MONITOR || true
     if [[ "$PAIR_NOW_MONITOR" =~ ^[Yy]$ ]]; then
         echo -e "Please scan the QR code with YOUR sales phone ($OWNER_PHONE):"
         node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
+        if is_whatsapp_registered "$MONITOR_CREDS"; then
+            echo -e "${GREEN}✓ Salesperson Monitor paired and registered successfully!${NC}"
+        else
+            echo -e "${YELLOW}Monitor pairing was not completed. You can pair anytime with:${NC} npm run pair:monitor"
+            rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
+        fi
     else
         echo -e "${YELLOW}Skipping monitor pairing for now. Pair anytime with:${NC} npm run pair:monitor"
     fi
@@ -241,7 +258,7 @@ echo -e " • Auto-replies to unknown numbers are strictly blocked."
 echo -e "${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 
 AGENT_CREDS="$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys/creds.json"
-if [ -f "$AGENT_CREDS" ]; then
+if is_whatsapp_registered "$AGENT_CREDS"; then
     echo -e "${GREEN}✓ Existing WhatsApp session detected for AI Agent.${NC}"
     read -r -p "Do you want to re-pair the AI Agent WhatsApp bot? (y/N): " REPAIR_AGENT || true
     if [[ "$REPAIR_AGENT" =~ ^[Yy]$ ]]; then
@@ -249,11 +266,18 @@ if [ -f "$AGENT_CREDS" ]; then
         node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
     fi
 else
+    rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
     echo -e "Private internal bot number for sending instructions to the AI agent."
     read -r -p "Scan QR code to pair the AI Agent bot now? (y/N): " PAIR_NOW_AGENT || true
     if [[ "$PAIR_NOW_AGENT" =~ ^[Yy]$ ]]; then
         echo -e "Please scan the QR code to pair the AI Agent Private Bot:"
         node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
+        if is_whatsapp_registered "$AGENT_CREDS"; then
+            echo -e "${GREEN}✓ AI Agent Private Bot paired and registered successfully!${NC}"
+        else
+            echo -e "${YELLOW}Agent pairing was not completed. You can pair anytime with:${NC} npm run pair:agent"
+            rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
+        fi
     else
         echo -e "${YELLOW}Skipping agent pairing for now. Pair anytime with:${NC} npm run pair:agent"
     fi

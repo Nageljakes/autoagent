@@ -1,4 +1,4 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, Browsers } from '@whiskeysockets/baileys';
 import qrcodeTerminal from 'qrcode-terminal';
 import pino from 'pino';
 import path from 'path';
@@ -29,17 +29,41 @@ console.log(`ℹ️  Role: ${roleDescription}`);
 console.log(`📁 Auth Directory: ${authDir}`);
 console.log("========================================================\n");
 
+// If existing creds exist but are not registered, clean them up to ensure fresh pairing
+const credsPath = path.join(authDir, 'creds.json');
+if (fs.existsSync(credsPath)) {
+  try {
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+    if (!creds.registered) {
+      console.log("🧹 Cleaning up incomplete prior pairing attempt...");
+      fs.rmSync(authDir, { recursive: true, force: true });
+    }
+  } catch (e) {
+    fs.rmSync(authDir, { recursive: true, force: true });
+  }
+}
+
 if (!fs.existsSync(authDir)) {
   fs.mkdirSync(authDir, { recursive: true });
 }
 
 const logger = pino({ level: 'silent' });
+let sock = null;
+let isClosingCleanly = false;
 
 async function runPairing() {
+  if (sock) {
+    try {
+      sock.ev.removeAllListeners();
+      sock.ws?.close();
+    } catch (e) {}
+    sock = null;
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
 
-  const sock = makeWASocket({
+  sock = makeWASocket({
     version,
     logger,
     printQRInTerminal: false,
@@ -47,9 +71,11 @@ async function runPairing() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
-    browser: isMonitor ? ['JAX Companion Monitor', 'Chrome', '143.0.0.0'] : ['JAX Sales Agent', 'Chrome', '143.0.0.0'],
+    browser: Browsers.ubuntu('Chrome'),
     syncFullHistory: false,
-    markOnlineOnConnect: true
+    markOnlineOnConnect: true,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -67,28 +93,61 @@ async function runPairing() {
     }
 
     if (connection === 'open') {
+      isClosingCleanly = true;
       console.log(`\n✅ SUCCESS: ${label} connected and authenticated successfully!`);
-      console.log("Flushing session credentials to disk...\n");
+      console.log("Finalizing multi-device registration & syncing session...\n");
       await saveCreds();
-      setTimeout(() => {
+
+      // Wait a few seconds to let WhatsApp finish the device naming & initial sync with the phone
+      setTimeout(async () => {
         try {
+          await saveCreds();
           sock.ev.removeAllListeners();
           sock.ws?.close();
         } catch (e) {}
+        console.log(`✓ Device paired and credentials saved. Ready!\n`);
         process.exit(0);
-      }, 2500);
+      }, 4000);
     }
 
-    if (connection === 'close') {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      if (!shouldReconnect) {
-        console.error(`❌ Connection logged out. Please re-run to generate a fresh QR.`);
+    if (connection === 'close' && !isClosingCleanly) {
+      const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+      const shouldReconnect = !isLoggedOut;
+
+      if (shouldReconnect) {
+        console.log(`🔄 Handshake in progress (status: ${statusCode || 'reconnect'}). Finalizing pairing with phone...`);
+        // Small delay before reconnecting to let filesystem state flush
+        setTimeout(() => {
+          runPairing().catch(err => {
+            console.error("Reconnection error:", err.message);
+            process.exit(1);
+          });
+        }, 1500);
+      } else {
+        console.error(`❌ Connection logged out or expired. Please re-run to generate a fresh QR.`);
+        try {
+          fs.rmSync(authDir, { recursive: true, force: true });
+        } catch (e) {}
         process.exit(1);
       }
     }
   });
 }
+
+process.on('SIGINT', () => {
+  console.log("\n⚠️ Pairing cancelled by user.");
+  try {
+    const credsPath = path.join(authDir, 'creds.json');
+    if (fs.existsSync(credsPath)) {
+      const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+      if (!creds.registered) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+    }
+  } catch (e) {}
+  process.exit(130);
+});
 
 runPairing().catch(err => {
   console.error("Pairing error:", err.message);
