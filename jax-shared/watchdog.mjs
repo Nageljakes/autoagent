@@ -42,6 +42,9 @@ let lastAlertSentAt = 0;
 const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // Max 1 alert every 10 min
 
 async function sendTelegramAlert(message) {
+  if (!TELEGRAM_BOT_TOKEN || !OWNER_TELEGRAM_ID) {
+    return;
+  }
   const now = Date.now();
   if (now - lastAlertSentAt < ALERT_COOLDOWN_MS) {
     return;
@@ -138,7 +141,7 @@ async function performHealthCheck() {
   const health = await checkHealthEndpoint();
 
   // Track Telegram failures
-  if (!procs.telegramOnline) {
+  if (TELEGRAM_BOT_TOKEN && !procs.telegramOnline) {
     tgFailures++;
     console.warn(`⚠️ [WATCHDOG] Telegram offline (${tgFailures}/${FAILURES_BEFORE_RESTART})`);
   } else {
@@ -175,14 +178,13 @@ async function performHealthCheck() {
     }
   }
 
-  // Restart Telegram ONLY if Telegram or its Health server is confirmed down for 5 consecutive checks
-  if (tgFailures >= FAILURES_BEFORE_RESTART || apiFailures >= FAILURES_BEFORE_RESTART) {
+  // Restart Telegram ONLY if Telegram is configured and confirmed down for 5 consecutive checks
+  if (TELEGRAM_BOT_TOKEN && tgFailures >= FAILURES_BEFORE_RESTART) {
     try {
       console.log('🔄 [WATCHDOG AUTO-HEAL] Restarting failed jax-telegram service...');
       await execAsync(`${PM2_BIN} restart jax-telegram`, EXEC_OPTS);
       actions.push('Telegram restarted');
       tgFailures = 0;
-      apiFailures = 0;
     } catch (e) {
       console.error('[WATCHDOG RECOVERY ERROR Telegram]:', e.message);
     }

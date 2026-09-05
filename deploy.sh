@@ -49,8 +49,8 @@ else
 fi
 
 # Check Python 3 and pip
-if ! command -v python3 &>/dev/null; then
-    echo -e "${YELLOW}Python 3 not detected. Installing python3, pip, and venv...${NC}"
+if ! command -v python3 &>/dev/null || ! command -v pip3 &>/dev/null; then
+    echo -e "${YELLOW}Python 3 or pip not fully detected. Installing python3, pip, and venv...${NC}"
     sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
 else
     PY_VER=$(python3 --version)
@@ -71,11 +71,11 @@ echo -e "Checking Python packages..."
 if [ -f "$ROOT_DIR/requirements.txt" ]; then
     if ! python3 -c "import curl_cffi, bs4, requests" &>/dev/null; then
         echo -e "${YELLOW}Installing required Python packages (curl_cffi, beautifulsoup4, requests)...${NC}"
+        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt" --break-system-packages 2>/dev/null || \
         pip3 install -q --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
         pip3 install -q --user --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
         pip3 install -q -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
-        python3 -m pip install -q --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
-        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt"
+        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt" || true
     fi
     echo -e "${GREEN}✓ Python dependencies verified (curl_cffi, beautifulsoup4, requests).${NC}"
 fi
@@ -107,7 +107,7 @@ echo -e "\n${CYAN}${BOLD}[2/6] Configuring Antigravity CLI (Agent Brain)...${NC}
 if ! command -v agy &>/dev/null; then
     echo -e "${YELLOW}Antigravity CLI (agy) not found in PATH.${NC}"
     echo -e "Initiating official Antigravity CLI installer..."
-    curl -fsSL https://antigravity.google/install.sh | bash || true
+    curl -fsSL https://antigravity.google/install.sh | bash 2>/dev/null || true
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
@@ -117,9 +117,9 @@ if command -v agy &>/dev/null; then
     
     # Check if CLI requires interactive login
     echo -e "${BLUE}Verifying Antigravity authentication...${NC}"
-    if ! timeout 5 env DBUS_SESSION_BUS_ADDRESS=disabled: agy whoami &>/dev/null && ! timeout 5 env DBUS_SESSION_BUS_ADDRESS=disabled: agy auth status &>/dev/null; then
-        echo -e "${YELLOW}Starting interactive Antigravity CLI authentication:${NC}"
-        agy auth login || agy install || true
+    if ! timeout 5 env DBUS_SESSION_BUS_ADDRESS=disabled: agy models &>/dev/null; then
+        echo -e "${YELLOW}Starting Antigravity CLI configuration:${NC}"
+        timeout 10 env DBUS_SESSION_BUS_ADDRESS=disabled: agy install || true
     else
         echo -e "${GREEN}✓ Antigravity CLI session is authenticated.${NC}"
     fi
@@ -139,31 +139,64 @@ echo -e " • Zero unprompted auto-replies to customers."
 echo -e " • The AI only sends WhatsApp messages to customers when YOU instruct it."
 echo -e "${BLUE}──────────────────────────────────────────────────────────────────${NC}"
 
-SALESPERSON_NAME=""
-while [ -z "$SALESPERSON_NAME" ]; do
-    read -r -p "Salesperson Preferred Name (required, e.g. John): " INPUT_NAME
-    SALESPERSON_NAME=${INPUT_NAME:-""}
-done
+# Load existing configuration if available
+CONFIG_ENV="$HOME/.config/dealer_credentials.env"
+EXISTING_NAME=""
+EXISTING_BRANCH=""
+EXISTING_PHONE=""
+EXISTING_TG_TOKEN=""
+EXISTING_TG_ID=""
+EXISTING_CRM_USER=""
+EXISTING_CRM_PASS=""
 
-DEALERSHIP_NAME=""
-while [ -z "$DEALERSHIP_NAME" ]; do
-    read -r -p "Dealership Branch Name (required, e.g. City Motors): " INPUT_BRANCH
-    DEALERSHIP_NAME=${INPUT_BRANCH:-""}
-done
+if [ -f "$ROOT_DIR/.env" ]; then
+    EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_TG_TOKEN=$(grep -E "^TELEGRAM_BOT_TOKEN=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_TG_ID=$(grep -E "^OWNER_USER_ID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+fi
 
-OWNER_PHONE=""
-while [ -z "$OWNER_PHONE" ]; do
-    read -r -p "Salesperson Primary WhatsApp Number (required, e.g. 27821234567): " INPUT_PHONE
-    OWNER_PHONE=${INPUT_PHONE:-""}
-    if [ -z "$OWNER_PHONE" ]; then
-        echo -e "${RED}Error: Salesperson Primary WhatsApp Number is required.${NC}"
-    fi
-done
+if [ -f "$CONFIG_ENV" ]; then
+    [ -z "$EXISTING_CRM_USER" ] && EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_CRM_PASS" ] && EXISTING_CRM_PASS=$(grep -E "^CRM_PASSWORD=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_NAME" ] && EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_PHONE" ] && EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_BRANCH" ] && EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+fi
 
-echo -e "
-${BLUE}--- Optional Telegram Integration ---${NC}"
-read -r -p "Telegram Bot Token (press enter to skip): " TELEGRAM_BOT_TOKEN
-read -r -p "Telegram Owner User ID (press enter to skip): " TELEGRAM_OWNER_ID
+# Helper prompt function
+prompt_val() {
+    local label="$1"
+    local existing="$2"
+    local is_required="${3:-false}"
+    local val=""
+
+    while true; do
+        if [ -n "$existing" ]; then
+            read -r -p "$label [Current: $existing]: " val || true
+            val="${val:-$existing}"
+        else
+            read -r -p "$label: " val || true
+        fi
+        
+        if [ -n "$val" ] || [ "$is_required" != "true" ] || [ ! -t 0 ]; then
+            break
+        fi
+        echo -e "${RED}This field is required.${NC}"
+    done
+    echo "$val"
+}
+
+SALESPERSON_NAME=$(prompt_val "Salesperson Preferred Name" "${EXISTING_NAME:-John}" true)
+DEALERSHIP_NAME=$(prompt_val "Dealership Branch Name" "${EXISTING_BRANCH:-City Motors}" true)
+OWNER_PHONE=$(prompt_val "Salesperson Primary WhatsApp Number (e.g. 27821234567)" "${EXISTING_PHONE:-27821234567}" true)
+
+echo -e "\n${BLUE}--- Optional Telegram Integration ---${NC}"
+TELEGRAM_BOT_TOKEN=$(prompt_val "Telegram Bot Token (press enter to skip)" "$EXISTING_TG_TOKEN" false)
+TELEGRAM_OWNER_ID=$(prompt_val "Telegram Owner User ID (press enter to skip)" "$EXISTING_TG_ID" false)
 
 # ------------------------------------------------------------------------------
 # STEP 4: Pair WhatsApp QR Codes
@@ -182,14 +215,20 @@ echo -e "${BLUE}═════════════════════�
 MONITOR_CREDS="$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor/creds.json"
 if [ -f "$MONITOR_CREDS" ]; then
     echo -e "${GREEN}✓ Existing WhatsApp session detected for Salesperson Monitor.${NC}"
-    read -r -p "Do you want to re-pair the Salesperson WhatsApp Monitor? (y/N): " REPAIR_MONITOR
+    read -r -p "Do you want to re-pair the Salesperson WhatsApp Monitor? (y/N): " REPAIR_MONITOR || true
     if [[ "$REPAIR_MONITOR" =~ ^[Yy]$ ]]; then
         rm -rf "$ROOT_DIR/jax-whatsapp-monitor/auth_info_monitor"/*
-        node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor
+        node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
     fi
 else
-    echo -e "Please scan the QR code with YOUR sales phone ($OWNER_PHONE):"
-    node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor
+    echo -e "Connects to YOUR personal phone ($OWNER_PHONE) to passively mirror chats."
+    read -r -p "Scan QR code to pair your phone now? (y/N): " PAIR_NOW_MONITOR || true
+    if [[ "$PAIR_NOW_MONITOR" =~ ^[Yy]$ ]]; then
+        echo -e "Please scan the QR code with YOUR sales phone ($OWNER_PHONE):"
+        node "$ROOT_DIR/scripts/pair_session.mjs" --target=monitor || true
+    else
+        echo -e "${YELLOW}Skipping monitor pairing for now. Pair anytime with:${NC} npm run pair:monitor"
+    fi
 fi
 
 # Part B: AI Agent Private Co-Pilot (Internal Assistant)
@@ -204,14 +243,20 @@ echo -e "${BLUE}═════════════════════�
 AGENT_CREDS="$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys/creds.json"
 if [ -f "$AGENT_CREDS" ]; then
     echo -e "${GREEN}✓ Existing WhatsApp session detected for AI Agent.${NC}"
-    read -r -p "Do you want to re-pair the AI Agent WhatsApp bot? (y/N): " REPAIR_AGENT
+    read -r -p "Do you want to re-pair the AI Agent WhatsApp bot? (y/N): " REPAIR_AGENT || true
     if [[ "$REPAIR_AGENT" =~ ^[Yy]$ ]]; then
         rm -rf "$ROOT_DIR/jax-whatsapp-agent/auth_info_baileys"/*
-        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent
+        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
     fi
 else
-    echo -e "Please scan the QR code to pair the AI Agent Private Bot:"
-    node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent
+    echo -e "Private internal bot number for sending instructions to the AI agent."
+    read -r -p "Scan QR code to pair the AI Agent bot now? (y/N): " PAIR_NOW_AGENT || true
+    if [[ "$PAIR_NOW_AGENT" =~ ^[Yy]$ ]]; then
+        echo -e "Please scan the QR code to pair the AI Agent Private Bot:"
+        node "$ROOT_DIR/scripts/pair_session.mjs" --target=agent || true
+    else
+        echo -e "${YELLOW}Skipping agent pairing for now. Pair anytime with:${NC} npm run pair:agent"
+    fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -223,22 +268,21 @@ echo -e "Connect to your dealership CRM portal (dealer-portal.example.com / deal
 echo -e "to automate daily diary follow-ups, dual-logging, and customer records."
 echo -e "${BLUE}──────────────────────────────────────────────────────────────────${NC}"
 
-CONFIG_ENV="$HOME/.config/dealer_credentials.env"
-CURR_USER=""
-CURR_PASS=""
+CRM_USER=$(prompt_val "Dealership CRM Username (press enter to skip)" "$EXISTING_CRM_USER" false)
 
-if [ -f "$CONFIG_ENV" ]; then
-    CURR_USER=$(grep -E "^CRM_USERNAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d '"'"'")
+if [ -n "$CRM_USER" ]; then
+    if [ -n "$EXISTING_CRM_PASS" ]; then
+        read -r -s -p "Dealership CRM Password [Hidden, press enter to keep current]: " INPUT_PASS || true
+        echo ""
+        CRM_PASS="${INPUT_PASS:-$EXISTING_CRM_PASS}"
+    else
+        read -r -s -p "Dealership CRM Password (hidden): " INPUT_PASS || true
+        echo ""
+        CRM_PASS="$INPUT_PASS"
+    fi
+else
+    CRM_PASS=""
 fi
-
-PROMPT_USER="Dealership CRM Username"
-[ -n "$CURR_USER" ] && PROMPT_USER="Dealership CRM Username [Current: $CURR_USER]"
-read -r -p "$PROMPT_USER: " INPUT_USER
-CRM_USER=${INPUT_USER:-$CURR_USER}
-
-read -r -s -p "Dealership CRM Password (hidden): " INPUT_PASS
-echo ""
-CRM_PASS=${INPUT_PASS:-$CURR_PASS}
 
 # Save credentials to ~/.config/dealer_credentials.env and repo .env
 cat << ENV_EOF > "$CONFIG_ENV"
@@ -271,16 +315,20 @@ chmod 600 "$ROOT_DIR/.env"
 
 echo -e "${GREEN}✓ Credentials stored securely in ~/.config/dealer_credentials.env${NC}"
 
-# Test CRM connection
-echo -e "${BLUE}Testing CRM credentials against portal...${NC}"
-LOGIN_OUT=$(python3 "$ROOT_DIR/skills/autohub-portal/scripts/portal_login.py" 2>&1 || true)
-if echo "$LOGIN_OUT" | grep -iq "Session Cookies"; then
-    echo -e "${GREEN}✓ SUCCESS: Authenticated successfully with CRM portal!${NC}"
-    echo -e "${BLUE}Synchronizing initial diary entries so harness is primed...${NC}"
-    python3 "$ROOT_DIR/skills/autohub-portal/scripts/populate_all_34_diaries.py" >/dev/null 2>&1 || true
-    echo -e "${GREEN}✓ Diary synchronization initialized.${NC}"
+# Test CRM connection only if credentials were provided
+if [ -n "$CRM_USER" ] && [ -n "$CRM_PASS" ]; then
+    echo -e "${BLUE}Testing CRM credentials against portal...${NC}"
+    LOGIN_OUT=$(python3 "$ROOT_DIR/skills/autohub-portal/scripts/portal_login.py" 2>&1 || true)
+    if echo "$LOGIN_OUT" | grep -iq "Session Cookies"; then
+        echo -e "${GREEN}✓ SUCCESS: Authenticated successfully with CRM portal!${NC}"
+        echo -e "${BLUE}Synchronizing initial diary entries so harness is primed...${NC}"
+        python3 "$ROOT_DIR/skills/autohub-portal/scripts/populate_all_34_diaries.py" >/dev/null 2>&1 || true
+        echo -e "${GREEN}✓ Diary synchronization initialized.${NC}"
+    else
+        echo -e "${YELLOW}Warning: Portal test did not confirm session. Please double-check credentials if diaries do not sync.${NC}"
+    fi
 else
-    echo -e "${YELLOW}Warning: Portal test did not confirm session. Please double-check credentials if diaries do not sync.${NC}"
+    echo -e "${YELLOW}CRM portal credentials not specified. Skipping portal connection test.${NC}"
 fi
 
 # ------------------------------------------------------------------------------

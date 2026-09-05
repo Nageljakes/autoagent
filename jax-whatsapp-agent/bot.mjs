@@ -10,6 +10,7 @@ import qrcodeTerminal from 'qrcode-terminal';
 import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { spawn, exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import dotenv from 'dotenv';
@@ -22,8 +23,14 @@ import {
   acquireExecutionSlot, getSemaphoreStatus, acquireProcessLock,
   trackInFlight, clearInFlight, getUnfinishedInFlight
 } from '../jax-shared/memory.mjs';
+import { startHealthServer } from '../jax-shared/health.mjs';
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Start health check endpoint for watchdog/PM2
+startHealthServer();
 
 // Enforce single active instance
 acquireProcessLock('jax_whatsapp_agent');
