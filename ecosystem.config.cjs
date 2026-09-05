@@ -28,7 +28,7 @@ const apps = [
       ...envConfig,
       NODE_ENV: "production",
       API_PORT: "9095",
-      SQLITE_DB_PATH: path.join(SHARED_DATA, "prospects.db"),
+      SQLITE_DB_PATH: path.resolve(ROOT_DIR, process.env.SQLITE_DB_PATH || envConfig.SQLITE_DB_PATH || "jax-shared/data/prospects.db"),
       AUTH_DIR: path.join(ROOT_DIR, "jax-whatsapp-monitor", "auth_info_monitor")
     },
     error_file: path.join(LOGS_DIR, "pm2-monitor-error.log"),
@@ -52,7 +52,7 @@ const apps = [
     env: {
       ...envConfig,
       NODE_ENV: "production",
-      SQLITE_DB_PATH: path.join(SHARED_DATA, "prospects.db")
+      SQLITE_DB_PATH: path.resolve(ROOT_DIR, process.env.SQLITE_DB_PATH || envConfig.SQLITE_DB_PATH || "jax-shared/data/prospects.db")
     },
     error_file: path.join(LOGS_DIR, "pm2-whatsapp-error.log"),
     out_file: path.join(LOGS_DIR, "pm2-whatsapp-out.log"),

@@ -18,8 +18,7 @@ from portal_login import get_base_url, login, load_credentials_from_env_file
 from move_diary_entries import parse_all_entries
 from deal_heat_scorer import evaluate_deal_heat, clean_phone
 
-DB_PATH = "data/scratch/prospect_history.db"
-WA_DB = "jax-shared/data/prospects.db"
+from prospect_db import DB_PATH, WA_DB_PATH as WA_DB
 WA_API = "http://127.0.0.1:9095"
 
 def get_wa_history(phone, name="", crm_notes=None):

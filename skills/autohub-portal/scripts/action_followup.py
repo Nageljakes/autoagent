@@ -31,9 +31,9 @@ try:
 except ImportError:
     action_prospect = None
     find_prospect_in_db = None
-    CRM_DB_PATH = "data/scratch/prospect_history.db"
+    from prospect_db import DB_PATH as CRM_DB_PATH
 
-WA_DB_PATH = "jax-shared/data/prospects.db"
+from prospect_db import WA_DB_PATH
 MONITOR_API_BASE = "http://127.0.0.1:9095"
 
 SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Sales Executive")

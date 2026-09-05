@@ -12,8 +12,7 @@ import sqlite3
 import requests
 from datetime import datetime, timedelta
 
-CRM_DB = "data/scratch/prospect_history.db"
-WA_DB = "jax-shared/data/prospects.db"
+from prospect_db import DB_PATH as CRM_DB, WA_DB_PATH as WA_DB
 WA_API = "http://127.0.0.1:9095"
 
 def clean_phone(phone_str):

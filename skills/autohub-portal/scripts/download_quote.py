@@ -37,7 +37,7 @@ sys.path.append(str(Path(__file__).parent))
 from portal_login import get_base_url, login, load_credentials_from_env_file
 from customer_identity import lookup_customer
 
-PROSPECT_DB = Path("data/scratch/prospect_history.db")
+from prospect_db import DB_PATH as PROSPECT_DB
 QUOTES_DIR = Path("jax-shared/data/quotes")
 
 

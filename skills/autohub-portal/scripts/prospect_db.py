@@ -5,16 +5,19 @@ Stores interaction histories, attempts, and automatically evaluates
 sale likelihood (Hot Fresh Leads vs. Fatigued/Declined Prospects).
 """
 
+import sys
 import sqlite3
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-DB_PATH = Path("data/scratch/prospect_history.db")
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "jax-shared" / "scripts"))
+from database_paths import PROSPECT_HISTORY_DB as DB_PATH, SQLITE_DB_PATH as WA_DB_PATH
 
 def init_db(db_path: Path = DB_PATH):
     """Initializes SQLite database with WAL mode and necessary tables."""
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
         cursor = conn.cursor()

@@ -215,3 +215,5 @@ PYTHONPATH=skills/autohub-portal/scripts python3 skills/bb-used-cars/scripts/sea
 ## 📄 License
 
 MIT License. Copyright (c) 2026 AutoAgent Contributors.
+
+Database configuration: `SQLITE_DB_PATH` selects the WhatsApp message database (default `jax-shared/data/prospects.db`). `PROSPECT_HISTORY_DB` selects the separate CRM history database (default `data/scratch/prospect_history.db`). Export these variables for Python/cron jobs; PM2 also reads the root `.env`. Relative paths resolve from the repository root, independent of the working directory. Set `PROSPECT_HISTORY_DB` explicitly when retaining an older database under `~/.gemini`.

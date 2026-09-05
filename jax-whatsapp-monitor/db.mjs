@@ -1,9 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import fs from 'fs';
 import { normalizeWhatsAppJid } from '../jax-shared/owner-identity.mjs';
 
-const DB_PATH = process.env.SQLITE_DB_PATH || path.resolve('./data/prospects.db');
+const ROOT_DIR = fileURLToPath(new URL('../', import.meta.url));
+const DB_PATH = path.resolve(ROOT_DIR, process.env.SQLITE_DB_PATH || 'jax-shared/data/prospects.db');
 
 // Ensure directory exists
 const dbDir = path.dirname(DB_PATH);

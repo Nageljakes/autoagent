@@ -17,10 +17,7 @@ def normalize_phone(p):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SHARED_DIR = os.path.dirname(SCRIPT_DIR)
-HOME_DIR = os.environ.get("HOME", "")
-
-PROSPECT_HISTORY_DB = os.environ.get("PROSPECT_HISTORY_DB", os.path.join(HOME_DIR, ".gemini", "antigravity-cli", "scratch", "prospect_history.db"))
-PROSPECTS_DB = os.environ.get("PROSPECTS_DB", os.path.join(SHARED_DIR, "data", "prospects.db"))
+from database_paths import PROSPECT_HISTORY_DB, SQLITE_DB_PATH as PROSPECTS_DB
 CRM_SYNC_JSON = os.environ.get("CRM_SYNC_JSON", os.path.join(SHARED_DIR, "data", "crm_sync.json"))
 SALESPERSON_NAME = os.environ.get("SALESPERSON_NAME", "Salesperson")
 
