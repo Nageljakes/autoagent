@@ -150,11 +150,13 @@ EXISTING_CRM_USER=""
 EXISTING_CRM_PASS=""
 EXISTING_CRM_LOGIN_URL=""
 EXISTING_CRM_BASE_URL=""
+EXISTING_OWNER_LID=""
 
 if [ -f "$ROOT_DIR/.env" ]; then
     EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
+    EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_TOKEN=$(grep -E "^TELEGRAM_BOT_TOKEN=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_TG_ID=$(grep -E "^OWNER_USER_ID=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
     EXISTING_CRM_USER=$(grep -E "^CRM_USERNAME=" "$ROOT_DIR/.env" | cut -d'=' -f2- | tr -d "\"'" || true)
@@ -170,8 +172,10 @@ if [ -f "$CONFIG_ENV" ]; then
     [ -z "$EXISTING_CRM_BASE_URL" ] && EXISTING_CRM_BASE_URL=$(grep -E "^CRM_BASE_URL=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_NAME" ] && EXISTING_NAME=$(grep -E "^SALESPERSON_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_PHONE" ] && EXISTING_PHONE=$(grep -E "^OWNER_PHONE_NUMBER=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
+    [ -z "$EXISTING_OWNER_LID" ] && EXISTING_OWNER_LID=$(grep -E "^OWNER_LID=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
     [ -z "$EXISTING_BRANCH" ] && EXISTING_BRANCH=$(grep -E "^DEALERSHIP_NAME=" "$CONFIG_ENV" | cut -d'=' -f2- | tr -d "\"'" || true)
 fi
+OWNER_LID="$EXISTING_OWNER_LID"
 
 # Helper prompt function
 prompt_val() {
@@ -212,6 +216,7 @@ CRM_USERNAME=$EXISTING_CRM_USER
 CRM_PASSWORD=$EXISTING_CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
 OWNER_PHONE_NUMBER=$OWNER_PHONE
+OWNER_LID=$OWNER_LID
 RESTRICT_TO_OWNER=true
 DEALERSHIP_NAME=$DEALERSHIP_NAME
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -294,6 +299,15 @@ else
     fi
 fi
 
+if is_whatsapp_registered "$AGENT_CREDS"; then
+    AGENT_NUMBER=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.id?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    AGENT_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$AGENT_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    if [ "$AGENT_NUMBER" == "$OWNER_PHONE" ] && [ -n "$AGENT_LID" ]; then
+        OWNER_LID="$AGENT_LID"
+        echo -e "${GREEN}✓ Single-phone setup detected: auto-configured Owner WhatsApp LID:${NC} $OWNER_LID"
+    fi
+fi
+
 # Part B: Salesperson Companion Monitor (Where Customer Chats Happen) - OPTIONAL
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}STEP 4B: SALESPERSON COMPANION MONITOR (OPTIONAL)${NC}"
@@ -337,6 +351,14 @@ else
     fi
 fi
 
+if is_whatsapp_registered "$MONITOR_CREDS"; then
+    DETECTED_LID=$(node -e "try { const c = JSON.parse(fs.readFileSync('$MONITOR_CREDS')); console.log(c.me?.lid?.split(':')[0]?.split('@')[0] || ''); } catch(e){}" 2>/dev/null || true)
+    if [ -n "$DETECTED_LID" ]; then
+        OWNER_LID="$DETECTED_LID"
+        echo -e "${GREEN}✓ Auto-detected Salesperson WhatsApp LID identity:${NC} $OWNER_LID"
+    fi
+fi
+
 # ------------------------------------------------------------------------------
 # STEP 5: Dealership CRM / Portal Onboarding
 # ------------------------------------------------------------------------------
@@ -374,6 +396,7 @@ CRM_USERNAME=$CRM_USER
 CRM_PASSWORD=$CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
 OWNER_PHONE_NUMBER=$OWNER_PHONE
+OWNER_LID=$OWNER_LID
 DEALERSHIP_NAME=$DEALERSHIP_NAME
 ENV_EOF
 chmod 600 "$CONFIG_ENV"
@@ -386,6 +409,7 @@ CRM_USERNAME=$CRM_USER
 CRM_PASSWORD=$CRM_PASS
 SALESPERSON_NAME=$SALESPERSON_NAME
 OWNER_PHONE_NUMBER=$OWNER_PHONE
+OWNER_LID=$OWNER_LID
 RESTRICT_TO_OWNER=true
 DEALERSHIP_NAME=$DEALERSHIP_NAME
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN

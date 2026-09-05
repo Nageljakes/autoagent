@@ -769,15 +769,20 @@ async function connectToWhatsApp() {
       const pushName = msg.pushName || 'Unknown Guest';
       const owner = isOwner(jid);
 
+      // Extract message content (supports ephemeral, view-once, extended text, captions, images, locations)
+      const { text: textContent, isVoice, isImage, isDoc, isLocation, mime, unwrapped } = extractMessageContent(msg);
+      const trimmedText = (textContent || '').trim();
+
       // Customer Chat Guard: Ignore non-owner messages to prevent unprompted auto-replies.
       // All customer chats are handled on the Sales Companion number.
       if (RESTRICT_TO_OWNER && !owner) {
-        log.warn(`[BLOCKED] Message from non-owner ${senderId} ignored. All customer chats are managed via the sales companion number; auto-replies are disabled.`);
-        continue;
+        if (trimmedText.startsWith('/claimowner') || trimmedText.startsWith('/auth')) {
+          // Allow claim / auth command through
+        } else {
+          log.warn(`[BLOCKED] Message from non-owner ${senderId} ignored. All customer chats are managed via the sales companion number; auto-replies are disabled.`);
+          continue;
+        }
       }
-
-      // Extract message content (supports ephemeral, view-once, extended text, captions, images, locations)
-      const { text: textContent, isVoice, isImage, isDoc, isLocation, mime, unwrapped } = extractMessageContent(msg);
 
       log.info(`[WA MSG IN] from=${senderId} (${owner ? 'OWNER' : 'GUEST'}), voice=${isVoice}, image=${isImage}, loc=${isLocation}, text="${textContent.slice(0, 60)}"`, {
         jid, senderId, type, isVoice, isImage, isLocation, hasText: Boolean(textContent)
@@ -865,9 +870,8 @@ async function connectToWhatsApp() {
         continue;
       }
 
-      if (!textContent || textContent.trim().length === 0) continue;
+      if (!textContent || trimmedText.length === 0) continue;
 
-      const trimmedText = textContent.trim();
       const lowerText = trimmedText.toLowerCase();
 
       // Immediate Task Interruption Command (/stop, /cancel, /abort, /kill, stop)
