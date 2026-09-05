@@ -4,6 +4,11 @@
 # ==============================================================================
 set -e
 
+# Reconnect stdin to controlling terminal if script was piped or detached
+if [ ! -t 0 ] && [ -e /dev/tty ]; then
+    exec < /dev/tty
+fi
+
 # ANSI Color Codes
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -25,8 +30,8 @@ echo -e "${BLUE}Autonomous Automotive CRM Engine, WhatsApp Companion & AI Co-Pil
 echo ""
 
 # Ensure user directories and paths
-export PATH="$HOME/.local/bin:$HOME/.local/node/bin:$PATH"
-export PYTHONPATH="$ROOT_DIR/skills/autohub-portal/scripts:$ROOT_DIR/skills/whatsapp-monitor/scripts:$PYTHONPATH"
+export PATH="/usr/local/bin:$HOME/.local/bin:$HOME/.local/node/bin:$PATH"
+export PYTHONPATH="$ROOT_DIR/skills/autohub-portal/scripts:$ROOT_DIR/skills/whatsapp-monitor/scripts:$ROOT_DIR/skills/bb-used-cars/scripts:$PYTHONPATH"
 
 # ------------------------------------------------------------------------------
 # STEP 1: System Dependencies & Environment Setup
@@ -45,17 +50,33 @@ fi
 
 # Check Python 3 and pip
 if ! command -v python3 &>/dev/null; then
-    echo -e "${YELLOW}Python 3 not detected. Installing python3 and pip...${NC}"
+    echo -e "${YELLOW}Python 3 not detected. Installing python3, pip, and venv...${NC}"
     sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
 else
     PY_VER=$(python3 --version)
     echo -e "${GREEN}✓ Python detected:${NC} $PY_VER"
 fi
 
+# Ensure pip3 is available
+if ! command -v pip3 &>/dev/null && ! python3 -m pip --version &>/dev/null; then
+    echo -e "${YELLOW}pip not detected. Installing python3-pip and python3-venv...${NC}"
+    sudo apt-get update && sudo apt-get install -y python3-pip python3-venv
+fi
+
+# Pre-install common distro packages where possible (fast & avoids PEP 668 issues)
+sudo apt-get install -y python3-requests python3-bs4 2>/dev/null || true
+
 # Install Python requirements
 echo -e "Checking Python packages..."
 if [ -f "$ROOT_DIR/requirements.txt" ]; then
-    pip3 install -q -r "$ROOT_DIR/requirements.txt" || python3 -m pip install -q -r "$ROOT_DIR/requirements.txt"
+    if ! python3 -c "import curl_cffi, bs4, requests" &>/dev/null; then
+        echo -e "${YELLOW}Installing required Python packages (curl_cffi, beautifulsoup4, requests)...${NC}"
+        pip3 install -q --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
+        pip3 install -q --user --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
+        pip3 install -q -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
+        python3 -m pip install -q --break-system-packages -r "$ROOT_DIR/requirements.txt" 2>/dev/null || \
+        python3 -m pip install -q -r "$ROOT_DIR/requirements.txt"
+    fi
     echo -e "${GREEN}✓ Python dependencies verified (curl_cffi, beautifulsoup4, requests).${NC}"
 fi
 
@@ -91,11 +112,12 @@ if ! command -v agy &>/dev/null; then
 fi
 
 if command -v agy &>/dev/null; then
-    echo -e "${GREEN}✓ Antigravity CLI is installed:${NC} $(agy --version 2>/dev/null || echo 'Detected')"
+    AGY_VER=$(timeout 3 env DBUS_SESSION_BUS_ADDRESS=disabled: agy --version 2>/dev/null || echo 'Detected')
+    echo -e "${GREEN}✓ Antigravity CLI is installed:${NC} $AGY_VER"
     
     # Check if CLI requires interactive login
     echo -e "${BLUE}Verifying Antigravity authentication...${NC}"
-    if ! agy whoami &>/dev/null && ! agy auth status &>/dev/null; then
+    if ! timeout 5 env DBUS_SESSION_BUS_ADDRESS=disabled: agy whoami &>/dev/null && ! timeout 5 env DBUS_SESSION_BUS_ADDRESS=disabled: agy auth status &>/dev/null; then
         echo -e "${YELLOW}Starting interactive Antigravity CLI authentication:${NC}"
         agy auth login || agy install || true
     else

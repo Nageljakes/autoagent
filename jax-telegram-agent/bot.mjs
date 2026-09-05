@@ -180,7 +180,11 @@ function runAgyPromptRaw(prompt, userId, continueSession = true) {
         ...process.env,
         HOME: process.env.HOME || '',
         PATH: `${process.env.HOME || ''}/.local/node/bin:${process.env.HOME || ''}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
-        PYTHONPATH: `${process.env.HOME || ''}/.local/lib/python3.11/site-packages`,
+        PYTHONPATH: [
+          process.env.PYTHONPATH,
+          `${process.env.HOME || ''}/.local/lib/python3.12/site-packages`,
+          `${process.env.HOME || ''}/.local/lib/python3.11/site-packages`
+        ].filter(Boolean).join(':'),
         // This VM has no functional system keyring/secret-service; agy's keyring probe
         // otherwise hangs ~10s per call before falling back (and can fall through to an
         // impossible interactive OAuth prompt on this headless box). Disabling the session
