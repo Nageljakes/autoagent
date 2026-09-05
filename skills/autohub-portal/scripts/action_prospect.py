@@ -68,6 +68,30 @@ def determine_purpose(note: str, fallback_purpose: str = "") -> str:
         return fallback_purpose
     return "Follow up regarding - - Interest"
 
+def require_crm_confirmation(response):
+    """Reject HTTP failures, login pages and explicit application failures."""
+    if not 200 <= response.status_code < 300:
+        raise RuntimeError(f"CRM update failed (HTTP {response.status_code})")
+    text = response.text.lower()
+    if any(marker in text for marker in ('an error has occur', 'oops!', 'type="password"', "type='password'")):
+        raise RuntimeError("CRM returned an error or login page")
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict):
+        fields = {str(k).lower(): v for k, v in payload.items()}
+        if fields.get("error") or fields.get("success") in (False, "false") or fields.get("status") in ("error", "failed"):
+            raise RuntimeError("CRM rejected the update")
+        confirmed = fields.get("success") is True or fields.get("status") in ("ok", "success")
+    else:
+        if payload is False:
+            raise RuntimeError("CRM rejected the update")
+        confirmed = payload is True
+    if response.status_code != 200 and not confirmed:
+        raise RuntimeError("CRM did not confirm the update")
+
+
 def action_prospect(
     custid: str = None,
     query: str = None,
@@ -219,23 +243,19 @@ def action_prospect(
     }
 
     r_post = session.post(followup_url, data=payload, headers=headers, allow_redirects=True, timeout=20)
-    is_err = "An error has occured" in r_post.text or ("Oops!" in r_post.text and "followup3" not in r_post.url and "entries" not in r_post.url)
-    if is_err and "CFID" not in r_post.text:
-        raise RuntimeError(f"Dealer CRM rejected update for {name} ({cid})")
+    require_crm_confirmation(r_post)
 
-    # 6. Also log permanent note directly to Customer ERA Notes section (Red Add Note button)
+    # Log the permanent note and confirm it before updating the local database.
     if note:
-        try:
-            url_cfc = (get_base_url() + "/model/com/southafrica/customer/customer_sa.cfc")
-            session.post(url_cfc, data={
-                "method": "addCustomerNotes",
-                "companyId": 5784,
-                "custid": cid,
-                "notes": note,
-                "loginid": 247088
-            }, timeout=15)
-        except Exception:
-            pass
+        url_cfc = get_base_url() + "/model/com/southafrica/customer/customer_sa.cfc"
+        note_response = session.post(url_cfc, data={
+            "method": "addCustomerNotes",
+            "companyId": 5784,
+            "custid": cid,
+            "notes": note,
+            "loginid": 247088
+        }, timeout=15)
+        require_crm_confirmation(note_response)
 
     # 7. Update local SQLite Database
     upsert_prospect(
