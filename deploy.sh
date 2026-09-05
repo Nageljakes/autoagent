@@ -424,6 +424,78 @@ chmod 600 "$ROOT_DIR/.env"
 
 echo -e "${GREEN}✓ Credentials stored securely in ~/.config/dealer_credentials.env${NC}"
 
+# ------------------------------------------------------------------------------
+# STEP 5.5: Personalize Agent Workspace, System Instructions & Skills
+# ------------------------------------------------------------------------------
+echo -e "\n${CYAN}${BOLD}[5.5] Personalizing Agent Workspaces & Instructions for ${SALESPERSON_NAME}...${NC}"
+
+# Ensure workspaces exist
+mkdir -p "$ROOT_DIR/jax-whatsapp-agent/workspace"
+mkdir -p "$ROOT_DIR/jax-telegram-agent/workspace"
+
+# Reset template files from git if clean checkout is available to allow re-running deploy.sh
+git checkout -- "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-whatsapp-agent/workspace/GEMINI.md" "$ROOT_DIR/jax-telegram-agent/workspace/GEMINI.md" "$ROOT_DIR/skills/" 2>/dev/null || true
+
+# Sync latest root GEMINI.md template into workspaces
+[ -f "$ROOT_DIR/GEMINI.md" ] && cp -f "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-whatsapp-agent/workspace/GEMINI.md"
+[ -f "$ROOT_DIR/GEMINI.md" ] && cp -f "$ROOT_DIR/GEMINI.md" "$ROOT_DIR/jax-telegram-agent/workspace/GEMINI.md"
+
+export ROOT_DIR SALESPERSON_NAME DEALERSHIP_NAME CRM_USER CRM_LOGIN_URL OWNER_PHONE OWNER_LID
+python3 - << 'RENDER_EOF'
+import os
+import glob
+
+root_dir = os.environ.get("ROOT_DIR", os.getcwd())
+salesperson = os.environ.get("SALESPERSON_NAME", "Sales Executive")
+dealership = os.environ.get("DEALERSHIP_NAME", "Dealership")
+dealership_alt = f"{dealership} Pre-Owned"
+dealership_sec = dealership
+crm_user = os.environ.get("CRM_USER", "")
+crm_url = os.environ.get("CRM_LOGIN_URL", "")
+owner_phone = os.environ.get("OWNER_PHONE", "")
+owner_lid = os.environ.get("OWNER_LID", "")
+
+replacements = {
+    "{SALESPERSON_NAME}": salesperson,
+    "{DEALERSHIP_NAME}": dealership,
+    "{DEALERSHIP_NAME_ALT}": dealership_alt,
+    "{DEALERSHIP_NAME_SECONDARY}": dealership_sec,
+    "{CRM_USERNAME}": crm_user,
+    "{CRM_LOGIN_URL}": crm_url,
+    "{OWNER_PHONE}": owner_phone,
+    "{OWNER_LID}": owner_lid,
+    "{INSTALL_DIR}": root_dir,
+}
+
+targets = [
+    os.path.join(root_dir, "GEMINI.md"),
+    os.path.join(root_dir, "jax-whatsapp-agent/workspace/GEMINI.md"),
+    os.path.join(root_dir, "jax-telegram-agent/workspace/GEMINI.md"),
+]
+for p in glob.glob(os.path.join(root_dir, "skills/**/*.md"), recursive=True):
+    targets.append(p)
+
+rendered_count = 0
+for filepath in set(targets):
+    if os.path.isfile(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            modified = content
+            for k, v in replacements.items():
+                if v:
+                    modified = modified.replace(k, str(v))
+            if modified != content:
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(modified)
+                rendered_count += 1
+        except Exception as err:
+            print(f"  ⚠️ Could not render {os.path.relpath(filepath, root_dir)}: {err}")
+
+print(f"  ✓ Rendered salesperson profile ({salesperson} @ {dealership}) across instructions & skills ({rendered_count} files).")
+RENDER_EOF
+
+
 # Test CRM connection only if credentials were provided
 if [ -n "$CRM_USER" ] && [ -n "$CRM_PASS" ]; then
     echo -e "${BLUE}Testing CRM credentials against portal...${NC}"

@@ -27,12 +27,12 @@ LOG_FILE = os.environ.get("INVENTORY_LOG_FILE", os.path.join(SHARED_DIR, "data",
 DEALERSHIPS = [
     {
         "id": "main_branch",
-        "name": "{DEALERSHIP_NAME}",
+        "name": os.environ.get("DEALERSHIP_NAME", "Main Dealership"),
         "base_url": "https://dealership.example.com/used/"
     },
     {
         "id": "preowned_branch",
-        "name": "{DEALERSHIP_NAME_ALT}",
+        "name": os.environ.get("DEALERSHIP_NAME_ALT", f"{os.environ.get('DEALERSHIP_NAME', 'Dealership')} Pre-Owned"),
         "base_url": "https://preowned.example.com/used/"
     }
 ]

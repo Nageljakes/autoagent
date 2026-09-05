@@ -35,6 +35,12 @@ except ImportError:
 WA_DB_PATH = "jax-shared/data/prospects.db"
 MONITOR_API_BASE = "http://127.0.0.1:9095"
 
+SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Sales Executive")
+DEALERSHIP_NAME = os.getenv("DEALERSHIP_NAME", "Dealership")
+CRM_USERNAME = os.getenv("CRM_USERNAME", "")
+CRM_USERNAME_SHORT = CRM_USERNAME.split()[0] if CRM_USERNAME else ""
+CRM_USERNAME_LAST = CRM_USERNAME.split()[-1] if len(CRM_USERNAME.split()) > 1 else ""
+
 # Comprehensive South African Indigenous African Names and Surnames
 AFRICAN_FIRST_NAMES = {
     'duduzile', 'dudu', 'sipho', 'thabo', 'nomvula', 'bongani', 'nthabiseng', 'kagiso',
@@ -273,11 +279,13 @@ def sanitize_dashes(text: str) -> str:
     return re.sub(r"[\u2014\u2013\u2015]", "-", text)
 
 def enforce_salesperson_identity(text: str) -> str:
-    """Enforce {SALESPERSON_NAME} identity: Replaces {CRM_USERNAME_SHORT} / {CRM_USERNAME} with {SALESPERSON_NAME}."""
+    """Enforce SALESPERSON_NAME identity: Replaces CRM username with SALESPERSON_NAME."""
     if not text:
         return text
-    text = re.sub(r"\b{CRM_USERNAME_SHORT}\s+{CRM_USERNAME_LAST}\b", {SALESPERSON_NAME}, text, flags=re.IGNORECASE)
-    text = re.sub(r"\b{CRM_USERNAME_SHORT}\b", {SALESPERSON_NAME}, text, flags=re.IGNORECASE)
+    if CRM_USERNAME_SHORT:
+        if CRM_USERNAME_LAST:
+            text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\s+{re.escape(CRM_USERNAME_LAST)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
+        text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
     return text
 
 def mask_phone(phone: str) -> str:

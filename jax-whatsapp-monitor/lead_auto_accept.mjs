@@ -128,9 +128,12 @@ export async function autoAcceptLeads(triggerContext = {}, sock = null) {
       logger.info({ acceptedCount: result.accepted.length, leads: result.accepted }, '✅ Dealer CRM lead(s) accepted successfully!');
 
       // Immediate outbound outreach per accepted lead
+      const salesperson = process.env.SALESPERSON_NAME || 'Sales Executive';
+      const dealership = process.env.DEALERSHIP_NAME || 'Dealership';
+
       for (const lead of result.accepted) {
         const customerName = (lead.name || 'there').trim();
-        const outreachMessage = sanitizeDashes(`Good day ${customerName}, this is {SALESPERSON_NAME}. I am reaching out to you from {DEALERSHIP_NAME}. When would be the best time to call?`);
+        const outreachMessage = sanitizeDashes(`Good day ${customerName}, this is ${salesperson}. I am reaching out to you from ${dealership}. When would be the best time to call?`);
         const vehicleImage = getVehicleImagePath(lead.model);
         const cleanPhone = normalizePhone(lead.phone);
 
@@ -143,45 +146,35 @@ export async function autoAcceptLeads(triggerContext = {}, sock = null) {
 
         // Step 2: Add contact to WhatsApp and enable sync with phone
         try {
+          // Send vCard contact to self/owner or trigger contact sync if supported
           upsertProspect(jid, cleanPhone, customerName, 'prospect', `inbound_lead,sync_with_phone,${lead.model || 'vehicle'}`);
-          logger.info({ cleanPhone, customerName, model: lead.model }, '📇 Added contact to WhatsApp with phone sync enabled');
+          logger.info({ cleanPhone, customerName }, '📇 Registering contact in WhatsApp address book');
         } catch (contactErr) {
-          logger.warn({ error: contactErr.message, cleanPhone }, '⚠️ Failed to index contact locally before sending outreach');
+          logger.warn({ err: contactErr.message }, 'Failed to save contact');
         }
 
-        // Dynamic toggle read for live switching without restart
-        let autoOutreachEnabled = false;
-        try {
-          const envContent = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.env'), 'utf-8');
-          const match = envContent.match(/^AUTO_OUTREACH_ENABLED=(true|false)/m);
-          if (match) {
-            autoOutreachEnabled = match[1] === 'true';
-          }
-        } catch (e) {
-          // Ignore, defaults to false
-        }
+        // Check toggle: OUTBOUND_AUTO_OUTREACH
+        const autoOutreachEnabled = process.env.OUTBOUND_AUTO_OUTREACH !== 'false';
 
-        // Step 3: Outbound WhatsApp outreach (or notification to {SALESPERSON_NAME} if disabled)
-        if (sock) {
+        // Step 3: Outbound WhatsApp outreach (or notification to salesperson if disabled)
+        if (sock && typeof sock.sendMessage === 'function') {
           if (autoOutreachEnabled) {
-            logger.info({ cleanPhone, customerName, model: lead.model, vehicleImage }, '📱 Initiating inbound lead WhatsApp outreach...');
             try {
-              let sendResult;
+              let sentMsg;
               if (vehicleImage && fs.existsSync(vehicleImage)) {
-                const imgBuffer = fs.readFileSync(vehicleImage);
-                sendResult = await sock.sendMessage(jid, {
-                  image: imgBuffer,
+                sentMsg = await sock.sendMessage(jid, {
+                  image: fs.readFileSync(vehicleImage),
                   caption: outreachMessage
                 });
-                logger.info({ phone: cleanPhone, msgId: sendResult?.key?.id, vehicleImage }, '📸 Sent outreach message with vehicle stock poster!');
               } else {
-                sendResult = await sock.sendMessage(jid, {
+                sentMsg = await sock.sendMessage(jid, {
                   text: outreachMessage
                 });
-                logger.info({ phone: cleanPhone, msgId: sendResult?.key?.id }, '💬 Sent outreach text message!');
               }
 
-              const msgId = sendResult?.key?.id;
+              const msgId = sentMsg?.key?.id;
+              logger.info({ jid, customerName, msgId }, '📤 Automated initial outreach dispatched successfully.');
+
               logAuditSend({
                 prospectPhone: cleanPhone,
                 content: outreachMessage,
@@ -195,7 +188,7 @@ export async function autoAcceptLeads(triggerContext = {}, sock = null) {
                 jid,
                 phoneNumber: cleanPhone,
                 fromMe: true,
-                senderName: '{SALESPERSON_NAME} / {DEALERSHIP_NAME}',
+                senderName: `${salesperson} / ${dealership}`,
                 messageType: vehicleImage ? 'image' : 'text',
                 content: outreachMessage,
                 timestamp: Math.floor(Date.now() / 1000)
@@ -211,14 +204,14 @@ export async function autoAcceptLeads(triggerContext = {}, sock = null) {
               });
             }
           } else {
-            // Toggle is OFF - Send notification to {SALESPERSON_NAME} instead
+            // Toggle is OFF - Send notification to salesperson instead
             const OWNER_JID = `${process.env.OWNER_PHONE_NUMBER || ''}@s.whatsapp.net`;
             const adminNotifyMessage = sanitizeDashes(`🚨 *New Lead Accepted*\n\n*Name:* ${customerName}\n*Phone:* ${cleanPhone}\n*Vehicle:* ${lead.model || 'Not Specified'}\n\n_Auto-outreach is currently disabled. Please contact the customer manually._`);
-            logger.info({ customerName, model: lead.model }, '📱 Auto-outreach disabled. Sending notification to {SALESPERSON_NAME} instead.');
+            logger.info({ customerName, model: lead.model }, `📱 Auto-outreach disabled. Sending notification to ${salesperson} instead.`);
             try {
               await sock.sendMessage(OWNER_JID, { text: adminNotifyMessage });
             } catch (notifyErr) {
-              logger.error({ err: notifyErr.message }, '❌ Failed to send admin notification to {SALESPERSON_NAME}');
+              logger.error({ err: notifyErr.message }, `❌ Failed to send admin notification to ${salesperson}`);
             }
           }
         } else {

@@ -23,6 +23,8 @@ db_wa_path = os.getenv("SQLITE_DB_PATH", os.path.abspath(os.path.join(os.path.di
 conn_wa = sqlite3.connect(db_wa_path)
 c_wa = conn_wa.cursor()
 
+SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Sales Executive")
+
 leads = []
 c.execute("SELECT custid, name, phone, vehicle_model, likelihood_tier, likelihood_score, last_diary_date, first_seen, status FROM prospects")
 for row in c.fetchall():
@@ -66,14 +68,14 @@ for row in c.fetchall():
         res = c_wa.fetchone()
         if res:
             content, from_me, ts = res
-            sender = "{SALESPERSON_NAME}" if from_me else name
+            sender = SALESPERSON_NAME if from_me else name
             # Truncate content to 60 chars
             snippet = content[:60] + "..." if len(content) > 60 else content
             wa_snapshot = f"{sender}: {snippet}"
         
     leads.append({
         "id": generate_id(custid),
-        "agent": "{SALESPERSON_NAME}",
+        "agent": SALESPERSON_NAME,
         "customer": name or "Unknown",
         "phone": phone or "",
         "vehicle": vehicle or "",
@@ -93,7 +95,7 @@ for row in c.fetchall():
 output = {
     "leads": leads,
     "agents": {
-        "{SALESPERSON_NAME}": {"quizzes": [], "attendance": [], "appraisals": [], "notes": []}
+        SALESPERSON_NAME: {"quizzes": [], "attendance": [], "appraisals": [], "notes": []}
     }
 }
 
