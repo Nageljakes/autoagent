@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Reconnect stdin to controlling terminal if piped (e.g. curl ... | bash)
-if [ ! -t 0 ] && [ -e /dev/tty ]; then
-    exec < /dev/tty
-fi
-
 # JAX Dealership OS - One-Liner Installer
 echo -e "\033[1;36m══════════════════════════════════════════════════════════════════\033[0m"
 echo -e "\033[1;32m      🚘 Downloading and Installing JAX Dealership OS...      \033[0m"
@@ -34,4 +29,8 @@ fi
 chmod +x deploy.sh setup.sh
 
 echo -e "\033[1;32m✓ Download complete. Launching interactive onboarding harness...\033[0m"
-exec ./deploy.sh "$@"
+if [ ! -t 0 ] && [ -r /dev/tty ]; then
+    exec ./deploy.sh "$@" </dev/tty
+else
+    exec ./deploy.sh "$@"
+fi
