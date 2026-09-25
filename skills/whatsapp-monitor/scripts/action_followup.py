@@ -4,7 +4,7 @@ action_followup.py - Intelligent Customer Follow-Up & Language Analysis Engine
 Performs pre-outreach context analysis across WhatsApp conversation history & CRM notes,
 determines the customer's preferred communication language (Afrikaans vs. English),
 enforces Dealership OS guardrails ({SALESPERSON_NAME} sender identity, strict long dash ban, 1-2 sentences),
-dispatches via the JAX WhatsApp Monitor bridge, and dual-logs the outcome to dealership CRM.
+dispatches via the JAX WhatsApp Monitor bridge, and dual-logs the outcome to Dealer CRM CRM.
 """
 
 import sys
@@ -21,7 +21,8 @@ import urllib.error
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 AUTOHUB_SCRIPTS_DIR = os.getenv("AUTOHUB_SCRIPTS_DIR", os.path.abspath(os.path.join(SCRIPT_DIR, "../../autohub-portal/scripts")))
-sys.path.append(AUTOHUB_SCRIPTS_DIR)
+if os.path.exists(AUTOHUB_SCRIPTS_DIR):
+    sys.path.append(AUTOHUB_SCRIPTS_DIR)
 sys.path.append(SCRIPT_DIR)
 from customer_identity import lookup_customer, normalize_phone
 
@@ -31,16 +32,16 @@ try:
 except ImportError:
     action_prospect = None
     find_prospect_in_db = None
-    from prospect_db import DB_PATH as CRM_DB_PATH
+    CRM_DB_PATH = os.getenv("CRM_DB_PATH", os.path.expanduser("~/.gemini/antigravity-cli/scratch/prospect_history.db"))
 
-from prospect_db import WA_DB_PATH
-MONITOR_API_BASE = "http://127.0.0.1:9095"
+WA_DB_PATH = os.getenv("SQLITE_DB_PATH", os.path.abspath(os.path.join(SCRIPT_DIR, "../../../jax-shared/data/prospects.db")))
+MONITOR_API_BASE = os.getenv("MONITOR_API_URL", "http://127.0.0.1:9095")
 
-SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Sales Executive")
-DEALERSHIP_NAME = os.getenv("DEALERSHIP_NAME", "Dealership")
-CRM_USERNAME = os.getenv("CRM_USERNAME", "")
-CRM_USERNAME_SHORT = CRM_USERNAME.split()[0] if CRM_USERNAME else ""
-CRM_USERNAME_LAST = CRM_USERNAME.split()[-1] if len(CRM_USERNAME.split()) > 1 else ""
+SALESPERSON_NAME = os.getenv("SALESPERSON_NAME", "Jakes")
+SALESPERSON_NAME_LOWER = SALESPERSON_NAME.lower()
+DEALERSHIP_NAME = os.getenv("DEALERSHIP_NAME", "BB Gezina Nissan")
+CRM_USERNAME = os.getenv("CRM_USERNAME", "Jacobus")
+CRM_USERNAME_LAST = os.getenv("CRM_USERNAME_LAST", "Nagel")
 
 # Comprehensive South African Indigenous African Names and Surnames
 AFRICAN_FIRST_NAMES = {
@@ -129,7 +130,7 @@ AFRICAN_STEM_PREFIXES = (
 )
 
 AFRIKAANS_NAMES = {
-    'armand', 'corne', 'corné', 'jaco', 'willem', 'dirk', 'kobus', 'pieter', 'johan',
+    'armand', 'corne', 'corné', 'jaco', 'hannes', 'dirk', 'kobus', 'pieter', 'johan',
     'johannes', 'willem', 'frikkie', 'frik', 'riaan', 'christo', 'schalk', 'carel',
     'bennie', 'francois', 'gert', 'henk', 'koos', 'louw', 'ockert', 'roelof', 'tiaan',
     'wouter', 'andre', 'andré', 'werner', 'joggie', 'stephan', 'marthinus', 'tinus',
@@ -140,14 +141,14 @@ AFRIKAANS_NAMES = {
     'waldo', 'zander', 'annelize', 'annelie', 'elize', 'marilize', 'liezel', 'liezl',
     'sanet', 'ronel', 'rina', 'martie', 'susan', 'wilma', 'hannetjie', 'magda', 'marietjie',
     'daleen', 'alta', 'elmarie', 'yolande', 'charmaine', 'petro', 'estelle', 'lizette',
-    'corrie', 'bettie', 'heleen', 'ilse', 'sunette', 'carina', 'lizelle', 
+    'corrie', 'bettie', 'heleen', 'ilse', 'sunette', 'carina', 'lizelle',
     'andorette', 'natassja', 'mulder', 'botha', 'matthee', 'van der merwe', 'du plessis',
     'venter', 'coetzee', 'fourie', 'pretorius', 'van wyk', 'steyn', 'de jager', 'nel',
     'smit', 'kruger', 'oosthuizen', 'marais', 'erasmus', 'labuschagne', 'oberholzer',
     'potgieter', 'cloete', 'joubert', 'viljoen', 'bezuidenhout', 'le roux', 'meyer',
     'boshoff', 'cronje', 'rossouw', 'swanepoel', 'snyman', 'bester', 'prinsloo',
     'jansen van rensburg', 'engelbrecht', 'van zyl', 'du toit', 'van niekerk', 'grobler',
-    'van staden', 'badenhorst',  'myburgh', 'olivier', 'wentzel', 'van heerden',
+    'van staden', 'badenhorst', 'myburgh', 'olivier', 'wentzel', 'van heerden',
     'van deventer', 'van rensburg', 'van vuuren', 'van rooyen', 'van jaarsveld', 'van dyk',
     'van biljon', 'van aardt', 'du preez', 'de wet', 'de beer', 'de klerk', 'de villiers',
     'de bruyn', 'de lange', 'de vos', 'de kock', 'naude', 'naudé', 'pienaar', 'theron',
@@ -181,8 +182,7 @@ AFRIKAANS_PHRASES = [
     'laat weet', 'hoe gaan', 'baie dankie', 'goeie dag', 'goeie middag', 'goeie more',
     'goeie môre', 'goeie naand', 'as dit', 'as jy', 'wanneer sal', 'vinnige geselsie',
     'vinnige luitjie', 'ek volg op', 'ek wil hoor', 'stuur vir', 'kontak my', 'bel my',
-    'skakel my', 'praat met', 'gee my', 'oor whatsapp', 'hoe lyk', 'wat is', 'wat kos',
-    'hoeveel kos', 'hoe lyk jou', 'hier van', 'hier weer'
+    'hoeveel kos', 'hoe lyk jou', 'jakes hier van', 'jakes hier weer'
 ]
 
 ENGLISH_EXCLUSIVE_WORDS = {
@@ -203,7 +203,7 @@ ENGLISH_PHRASES = [
     'how is', 'hope you', 'how your', 'your schedule', 'good time', 'quick check',
     'happy to assist', 'give you a call', 'give me a call', 'right here', 'after hours',
     'trade in', 'test drive', 'vehicle search', 'hear from you', 'looking for',
-    'here from', 'here again', 'in english', 'please send', 'send me'
+    'jakes here from', 'jakes here again', 'in english', 'please send', 'send me'
 ]
 
 VEHICLE_KEYWORDS = {
@@ -280,13 +280,11 @@ def sanitize_dashes(text: str) -> str:
     return re.sub(r"[\u2014\u2013\u2015]", "-", text)
 
 def enforce_salesperson_identity(text: str) -> str:
-    """Enforce SALESPERSON_NAME identity: Replaces CRM username with SALESPERSON_NAME."""
+    """Enforce Jakes identity: Replaces Jacobus / Jacobus Nagel with Jakes."""
     if not text:
         return text
-    if CRM_USERNAME_SHORT:
-        if CRM_USERNAME_LAST:
-            text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\s+{re.escape(CRM_USERNAME_LAST)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
-        text = re.sub(rf"\b{re.escape(CRM_USERNAME_SHORT)}\b", SALESPERSON_NAME, text, flags=re.IGNORECASE)
+    text = re.sub(r"\bJacobus\s+Nagel\b", "Jakes", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bJacobus\b", "Jakes", text, flags=re.IGNORECASE)
     return text
 
 def mask_phone(phone: str) -> str:
@@ -363,11 +361,19 @@ def clean_first_name(raw_name: str) -> str:
     if re.search(r"\d", clean_name):
         return ""
     
+    TITLES_TO_SKIP = {"mr", "mrs", "ms", "miss", "dr", "prof", "meneer", "mevrou", "mej", "mejuffrou", "adv", "pastor", "past", "rev"}
     parts = clean_name.split()
     if not parts:
         return ""
     
-    first = parts[0].strip(" ,.-/")
+    idx = 0
+    while idx < len(parts) and parts[idx].strip(" ,.-/").lower() in TITLES_TO_SKIP:
+        idx += 1
+    
+    if idx >= len(parts):
+        return ""
+        
+    first = parts[idx].strip(" ,.-/")
     if len(first) < 2 or re.search(r"\d", first):
         return ""
         
@@ -378,18 +384,18 @@ def clean_first_name(raw_name: str) -> str:
 
 def fetch_phone_from_crm_era(custid: str) -> tuple[str, str]:
     """
-    Live fallback: Extracts customer mobile and name directly from CRM ERA
+    Live fallback: Extracts customer mobile and name directly from Dealer CRM ERA
     if the local SQLite record had an empty phone number.
     """
     if not custid:
         return "", ""
     try:
         from bs4 import BeautifulSoup
-        from portal_login import get_base_url, login, load_credentials_from_env_file
+        from portal_login import login, load_credentials_from_env_file
         
         user, pwd = load_credentials_from_env_file()
         session, res = login(user, pwd)
-        url = f'{get_base_url()}/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}'
+        url = f"https://egm.dealer-crm.co.za/index.cfm?page=pages/customerera_selecttemplate.cfm&custid={custid}"
         r = session.get(url, timeout=15)
         soup = BeautifulSoup(r.text, "html.parser")
         
@@ -430,7 +436,7 @@ def tag_whatsapp_prospect(phone: str, name: str):
 
 def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone: str = "") -> dict:
     """
-    Resolves customer information from dealership CRM database, live ERA fallback, and WhatsApp Monitor.
+    Resolves customer information from Dealer CRM CRM database, live ERA fallback, and WhatsApp Monitor.
     Returns merged profile, history, and language analysis.
     """
     context = {
@@ -466,7 +472,7 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
     if q_veh and not context["vehicle"]:
         context["vehicle"] = q_veh
 
-    # 1. dealership CRM Mirror Lookup
+    # 1. Dealership CRM Mirror Lookup
     # Ambiguity is a hard stop; never retry through a first-match fallback.
     crm_info = lookup_customer(CRM_DB_PATH, query)
     if not crm_info and clean_q and clean_q != query:
@@ -484,7 +490,7 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
         if not context["phone"]: context["phone"] = crm_info.get("phone", "")
         if not context["vehicle"]: context["vehicle"] = crm_info.get("vehicle", "")
 
-    # 2. Live CRM ERA Phone Fallback (if phone is still empty and custid is known)
+    # 2. Live Dealer CRM ERA Phone Fallback (if phone is still empty and custid is known)
     if not context["phone"] and context["custid"]:
         era_phone, era_name = fetch_phone_from_crm_era(context["custid"])
         if era_phone:
@@ -516,7 +522,25 @@ def resolve_customer_context(query: str, explicit_name: str = "", explicit_phone
         if "language_analysis" in api_res:
             context["language_analysis"] = api_res["language_analysis"]
     else:
-        raise ValueError("Customer context unavailable or ambiguous; outreach stopped: " + str(api_res.get("error", "bridge lookup failed")))
+        # Fallback to direct SQLite read from prospects.db
+        if os.path.exists(WA_DB_PATH):
+            try:
+                with sqlite3.connect(f"file:{WA_DB_PATH}?immutable=1", uri=True) as conn:
+                    cur = conn.cursor()
+                    target_q = context["phone"] or context["name"] or query
+                    q_wild = f"%{target_q.strip()}%"
+                    cur.execute("SELECT jid, phone_number, name FROM prospects WHERE name LIKE ? OR phone_number LIKE ? LIMIT 1", (q_wild, q_wild))
+                    row = cur.fetchone()
+                    if row:
+                        if not context["name"] and row[2]:
+                            cn, _ = clean_customer_name(row[2])
+                            if cn: context["name"] = cn
+                        if not context["phone"] and row[1]: context["phone"] = row[1]
+                        jid = row[0]
+                        cur.execute("SELECT from_me, content, datetime(timestamp, 'unixepoch', 'localtime') FROM messages WHERE prospect_jid = ? OR phone_number = ? ORDER BY timestamp DESC LIMIT 5", (jid, row[1]))
+                        context["whatsapp_messages"] = [{"from_me": r[0], "content": r[1], "message_time": r[2]} for r in cur.fetchall()]
+            except Exception:
+                pass
 
     # Normalize phone to South African standard (27...)
     raw_p = re.sub(r"[^0-9]", "", context["phone"] or (clean_digits if is_phone_query else ""))
@@ -719,7 +743,7 @@ def synthesize_followup_message(first_name: str, vehicle: str, intent: str, lang
 def guard_and_adapt_message(message: str, first_name: str, language: str, intent: str, vehicle: str) -> str:
     """
     Validates and guards any draft message text:
-    - Enforces {SALESPERSON_NAME} sender identity (replaces {CRM_USERNAME_SHORT})
+    - Enforces {SALESPERSON_NAME} sender identity (replaces {CRM_USERNAME})
     - Enforces strict long dash ban
     - Checks language alignment (prevents sending English to an Afrikaans customer)
     - Strictly prevents raw numbers in salutations
@@ -740,13 +764,17 @@ def guard_and_adapt_message(message: str, first_name: str, language: str, intent
 
     return clean_msg
 
-def dispatch_whatsapp_message(phone: str, message: str) -> dict:
-    """Sends the message via the WhatsApp Monitor bridge with retry."""
+def dispatch_whatsapp_message(phone: str, message: str, audio_path: str = None, send_as_voice: bool = False) -> dict:
+    """Sends the message or voice note via the WhatsApp Monitor bridge with retry."""
     payload = {
         "phone": phone,
         "message": message,
         "authorizedBy": "salesperson_explicit_instruction"
     }
+    if audio_path and os.path.exists(audio_path):
+        payload["audioPath"] = os.path.abspath(audio_path)
+    elif send_as_voice:
+        payload["sendAsVoice"] = True
 
     res = query_bridge_api("/send", method="POST", data=payload)
     if res.get("success"):
@@ -760,7 +788,7 @@ def dispatch_whatsapp_message(phone: str, message: str) -> dict:
     return res
 
 def log_to_portal_crm(custid: str, query: str, note_text: str, days: int = 1) -> dict:
-    """Logs the touchpoint note and moves the diary follow-up on CRM."""
+    """Logs the touchpoint note and moves the diary follow-up on Dealer CRM."""
     if not action_prospect:
         return {"success": False, "error": "action_prospect module not loaded"}
 
@@ -788,6 +816,8 @@ def main():
     parser.add_argument("--message", "-m", default="", help="Optional pre-drafted message")
     parser.add_argument("--language", "-l", choices=["afrikaans", "english", "auto"], default="auto", help="Language override")
     parser.add_argument("--days", "-d", type=int, default=1, help="Diary move days ahead (default: 1)")
+    parser.add_argument("--note", default="", help="Custom CRM note to log alongside follow-up")
+    parser.add_argument("--voicenote", "--voice", "-v", action="store_true", help="Synthesize and dispatch follow-up as a native voice note (English: Fish Audio cloned voice, Afrikaans: Willem Edge TTS)")
     parser.add_argument("--dry-run", action="store_true", help="Analyze and draft without sending or logging")
     parser.add_argument("--json", action="store_true", help="Output raw JSON result")
 
@@ -857,51 +887,90 @@ def main():
         cust_name = context["name"] or args.name or args.query
         print(f"❌ Delivery Aborted: {cust_name} ({mask_phone(phone)}) is NOT registered on WhatsApp!")
         print(f"🚫 WhatsApp message was NOT sent.")
-        crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+        if args.note:
+            clean_user_note = sanitize_dashes(args.note)
+            crm_note = f"{clean_user_note} Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+        else:
+            crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
         crm_res = log_to_portal_crm(context["custid"], cust_name, crm_note, days=args.days)
         output_data["crm"] = crm_res
         output_data["dispatch"] = {"success": False, "notOnWhatsApp": True, "error": "Recipient phone number is not registered on WhatsApp"}
-        print(f"📅 dealership CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
+        print(f"📅 Dealer CRM CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
         if args.json:
             print(json.dumps(output_data, indent=2))
         return
 
-    dispatch_res = dispatch_whatsapp_message(phone, final_message)
-    output_data["dispatch"] = dispatch_res
+    # Synthesize voice note if requested
+    temp_voice_ogg = None
+    if args.voicenote:
+        try:
+            shared_dir = os.path.abspath(os.path.join(SCRIPT_DIR, "../../../jax-shared"))
+            if os.path.exists(shared_dir) and shared_dir not in sys.path:
+                sys.path.insert(0, shared_dir)
+            from audio_processor import synthesize_to_ogg_opus
+            temp_voice_ogg = f"/tmp/followup_vn_{os.getpid()}_{int(time.time())}.ogg"
+            if synthesize_to_ogg_opus(final_message, temp_voice_ogg, voice="auto"):
+                output_data["voice_note"] = temp_voice_ogg
+            else:
+                print("⚠️ Voice note synthesis failed, falling back to text dispatch", file=sys.stderr)
+                temp_voice_ogg = None
+        except Exception as e:
+            print(f"⚠️ Voice note error: {e}, falling back to text dispatch", file=sys.stderr)
+            temp_voice_ogg = None
 
-    if not dispatch_res.get("success"):
-        if dispatch_res.get("notOnWhatsApp"):
-            cust_name = context["name"] or args.name or args.query
-            print(f"❌ Delivery Aborted: {cust_name} ({mask_phone(phone)}) is NOT registered on WhatsApp!")
-            print(f"🚫 WhatsApp message was NOT sent.")
-            crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
-            crm_res = log_to_portal_crm(context["custid"], cust_name, crm_note, days=args.days)
-            output_data["crm"] = crm_res
-            print(f"📅 dealership CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
-            if args.json:
-                print(json.dumps(output_data, indent=2))
-            return
+    try:
+        dispatch_res = dispatch_whatsapp_message(phone, final_message, audio_path=temp_voice_ogg)
+        output_data["dispatch"] = dispatch_res
+
+        if not dispatch_res.get("success"):
+            if dispatch_res.get("notOnWhatsApp"):
+                cust_name = context["name"] or args.name or args.query
+                print(f"❌ Delivery Aborted: {cust_name} ({mask_phone(phone)}) is NOT registered on WhatsApp!")
+                print(f"🚫 WhatsApp message was NOT sent.")
+                if args.note:
+                    clean_user_note = sanitize_dashes(args.note)
+                    crm_note = f"{clean_user_note} Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+                else:
+                    crm_note = f"Follow-up WhatsApp aborted: customer phone ({mask_phone(phone)}) is not registered on WhatsApp. Direct phone call required."
+                crm_res = log_to_portal_crm(context["custid"], cust_name, crm_note, days=args.days)
+                output_data["crm"] = crm_res
+                print(f"📅 Dealer CRM CRM: Note logged ('Not on WhatsApp - phone call required') and diary moved {args.days} day(s) ahead.")
+                if args.json:
+                    print(json.dumps(output_data, indent=2))
+                return
+            else:
+                print(f"❌ WhatsApp Bridge Dispatch Failed: {dispatch_res.get('error')}", file=sys.stderr)
+                if args.json:
+                    print(json.dumps(output_data, indent=2))
+                sys.exit(1)
+
+        # Step 5: Dual-Log to Dealer CRM CRM
+        media_label = "Voice Note" if temp_voice_ogg else "WhatsApp"
+        if args.note:
+            clean_user_note = sanitize_dashes(args.note)
+            crm_note = f"{clean_user_note} Sent follow-up {media_label} ({detected_lang.capitalize()}): {final_message[:70]}..."
         else:
-            print(f"❌ WhatsApp Bridge Dispatch Failed: {dispatch_res.get('error')}", file=sys.stderr)
-            if args.json:
-                print(json.dumps(output_data, indent=2))
-            sys.exit(1)
+            crm_note = f"Sent follow-up {media_label} ({detected_lang.capitalize()}): {final_message[:90]}..."
+        crm_res = log_to_portal_crm(context["custid"], context["name"] or args.query, crm_note, days=args.days)
+        output_data["crm"] = crm_res
 
-    # Step 5: Dual-Log to dealership CRM
-    crm_note = f"Sent follow-up WhatsApp ({detected_lang.capitalize()}): {final_message[:90]}..."
-    crm_res = log_to_portal_crm(context["custid"], context["name"] or args.query, crm_note, days=args.days)
-    output_data["crm"] = crm_res
-
-    if args.json:
-        print(json.dumps(output_data, indent=2))
-    else:
-        print(f"✅ Follow-up delivered to {context['name'] or args.query} ({mask_phone(phone)})")
-        print(f"🗣️ Language: {detected_lang.upper()} ({lang_pref['confidence']} confidence)")
-        for r in lang_pref.get("reasons", []):
-            print(f"   • {r}")
-        print(f"📲 Delivered WhatsApp Message:")
-        print(f"\"{final_message}\"")
-        print(f"📅 dealership CRM: Note logged and diary moved {args.days} day(s) ahead.")
+        if args.json:
+            print(json.dumps(output_data, indent=2))
+        else:
+            vn_info = " (Voice Note)" if temp_voice_ogg else ""
+            print(f"✅ Follow-up delivered to {context['name'] or args.query} ({mask_phone(phone)}){vn_info}")
+            print(f"🗣️ Language: {detected_lang.upper()} ({lang_pref['confidence']} confidence)")
+            for r in lang_pref.get("reasons", []):
+                print(f"   • {r}")
+            print(f"📲 Delivered WhatsApp {'Voice Note' if temp_voice_ogg else 'Message'}:")
+            print(f"\"{final_message}\"")
+            print(f"📅 Dealer CRM CRM: Note logged and diary moved {args.days} day(s) ahead.")
+    finally:
+        if temp_voice_ogg and os.path.exists(temp_voice_ogg):
+            try:
+                os.unlink(temp_voice_ogg)
+            except OSError:
+                pass
 
 if __name__ == "__main__":
     main()

@@ -17,10 +17,10 @@ from datetime import datetime, timedelta, timezone
 SAST_OFFSET_HOURS = 2
 SAST_TZ = timezone(timedelta(hours=SAST_OFFSET_HOURS))
 
-PROSPECTS_DB_PATH = "/home/jakes/jax-shared/data/prospects.db"
-AUTOHUB_DB_PATH = "/home/jakes/.gemini/antigravity-cli/scratch/prospect_history.db"
-JAKES_WHATSAPP_PHONE = "27827398595"
-BRIDGE_API_URL = "http://127.0.0.1:9095/send"
+PROSPECTS_DB_PATH = os.getenv("PROSPECTS_DB_PATH", os.path.expanduser("~/jax-shared/data/prospects.db"))
+AUTOHUB_DB_PATH = os.getenv("AUTOHUB_DB_PATH", os.path.expanduser("~/.gemini/antigravity-cli/scratch/prospect_history.db"))
+JAKES_WHATSAPP_PHONE = os.getenv("JAKES_WHATSAPP_PHONE", "27827398595")
+BRIDGE_API_URL = os.getenv("BRIDGE_API_URL", "http://127.0.0.1:9095/send")
 
 def get_db_connection(db_path=PROSPECTS_DB_PATH):
     conn = sqlite3.connect(db_path)

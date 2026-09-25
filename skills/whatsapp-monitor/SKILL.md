@@ -110,11 +110,27 @@ import { getProspectConversation, searchProspectMessages, listProspects } from '
   - `--message`, `-m`: Optional draft text (auto-adapted to Afrikaans if customer is Afrikaans).
   - `--language`, `-l`: Explicit override ('afrikaans', 'english', 'auto').
   - `--days`, `-d`: Diary reschedule days (default: 1).
+  - `--voicenote`, `--voice`, `-v`: Synthesize and dispatch follow-up as native WhatsApp voice note (.ogg Opus).
   - `--dry-run`: Test context analysis and draft without dispatching.
   - `--json`: Output raw JSON analysis.
 - Safeguards:
   - STRICT BAN ON NUMERIC GREETINGS: Never greet a customer by their phone number ('Hi 082...').
   - TRUTHFUL COMPLETION REPORTING: Always quote the exact message delivered by the tool; never hallucinate or alter delivered text.
+
+### 7. Batch Lead Outreach Engine (`batch_followup.py`)
+- Location: `skills/whatsapp-monitor/scripts/batch_followup.py`
+  (also accessible via `skills/autohub-portal/scripts/batch_followup.py`)
+- Usage:
+  ```bash
+  python3 skills/whatsapp-monitor/scripts/batch_followup.py --names "Customer 1, Customer 2" [--days 1]
+  python3 skills/whatsapp-monitor/scripts/batch_followup.py --today-leads [--days 1]
+  ```
+- Capabilities:
+  - High-speed unified batch execution across 2 or more leads in under 20 seconds.
+  - Automatically checks and auto-accepts pending inbox leads on CRM portal.
+  - Verifies WhatsApp registration for each phone number via `/check-number`.
+  - Applies cultural name and language guard (strict English for indigenous African names, natural Afrikaans for traditional Afrikaans names).
+  - Dispatches WhatsApp message and dual-logs permanent note + reschedules diary in CRM.
 
 ## Live WhatsApp Reconnaissance & Bridge Health Protocol (MANDATORY)
 Before generating diary summaries, executive briefings, or customer recommendations:
