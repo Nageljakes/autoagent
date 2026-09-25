@@ -60,9 +60,7 @@ def get_login_url(session: requests.Session = None) -> str:
     Dynamically determines the CRM POST action endpoint from CRM_LOGIN_URL.
     If pointing to a landing page (e.g. dealership portal), inspects the form action.
     """
-    raw_url = os.getenv("CRM_LOGIN_URL", "").strip()
-    if not raw_url:
-        raise ValueError("CRM_LOGIN_URL environment variable is not configured.")
+    raw_url = os.getenv("CRM_LOGIN_URL", "").strip() or "https://login.auto-hub.co.za/checkserver.cfm"
     
     if raw_url.endswith(".cfm") or "/checkserver" in raw_url:
         return raw_url

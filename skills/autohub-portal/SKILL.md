@@ -199,10 +199,34 @@ To prevent deal dossiers and touchpoint notes from being fragmented:
 - Dealership staff and managers opening the customer file immediately see all logged interactions without requiring separate manual entries.
 
 ## Helper Scripts
-- `scripts/action_followup.py`: Autonomous customer follow-up engine that performs 4-tier context & language pre-analysis (Afrikaans vs. English), unifies mobile LIDs, drafts 1-2 sentence messages, dispatches via WhatsApp bridge, and dual-logs to Dealer CRM.
+- `scripts/track_deals.py`: Unified deal tracking and MTD performance audit engine reconciling sales summary reports, showroom whiteboard deliveries, and approved inbox OTPs against dealership sales calendar.
+- `scripts/manage_diaries.py`: High-performance Diary Management & Pipeline Balancing Engine (filters fluff, prioritizes working prospects across Overdue, Monday, and Tuesday).
+- `scripts/execute_pipeline_rebalancing.py`: Live execution of diary management, fluff relegation to Friday, and Monday re-engagement.
+- `scripts/batch_followup.py`: High-speed batch outreach engine for multi-lead WhatsApp follow-up and CRM dual-logging.
+- `scripts/action_followup.py`: Autonomous customer follow-up engine that performs multi-tier context & language pre-analysis (Afrikaans vs. English), unifies mobile LIDs, drafts 1-2 sentence messages, dispatches via WhatsApp bridge, and dual-logs to Dealer CRM.
 - `scripts/action_prospect.py`: Automatically log interaction notes, reschedule diary follow-ups, and update likelihood scores in a single command.
 - `scripts/portal_login.py`: Authenticate and start persistent session.
-- `scripts/move_diary_entries.py`: Batch reschedule diary follow-ups with zero-remaining sweep.
+- `scripts/nissan_login.py`: Compatibility wrapper for portal authentication.
+- `scripts/move_diary_entries.py`: Batch reschedule diary follow-ups with high-intent finance guardrails and zero-remaining sweep.
 - `scripts/prospect_db.py`: SQLite schema and lead likelihood evaluation engine.
 - `scripts/populate_all_34_diaries.py`: Extract all 34 diary entries via Load More and populate prospect histories.
 - `scripts/explore_portal.py`: Map all menu items, tools, and endpoints.
+
+## Deal Tracking & MTD Performance Audit Protocol
+
+Whenever the user asks about:
+- Monthly performance, targets, or sales stats ("how is my performance", "sales this month", "my numbers")
+- Deal progress and pipeline status ("progress", "track my deals", "what deals are pending")
+
+Follow this deterministic procedure:
+1. Run calendar status to get current sales month boundaries and remaining trading hours:
+   `python3 skills/bb-business-calendar/scripts/calendar_calc.py --status`
+2. Run the deal tracker script to fetch live sales summaries, approved OTPs, and whiteboard deliveries:
+   `python3 skills/autohub-portal/scripts/track_deals.py`
+3. Cross-reference hot prospects against `prospects.db` and WhatsApp messages.
+4. Present the 3-part Deal Snapshot:
+   - Part 1: Deals in the Bag (Delivered / Marked Sales)
+   - Part 2: Hot Approved OTP Pipeline (Ready for Handover)
+   - Part 3: Month-End Countdown & Tactical Next Steps
+5. When user provides deal updates (e.g. "Customer paid", "Declined", "Approved"), immediately execute `action_prospect.py` before answering.
+

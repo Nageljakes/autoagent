@@ -285,6 +285,27 @@ def action_prospect(
         last_date=target_date_str
     )
 
+    # 7b. Check if note specifies a callback time to schedule persistent reminder
+    if note:
+        try:
+            reminders_script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../scheduled-reminders/scripts"))
+            if os.path.exists(reminders_script_dir) and reminders_script_dir not in sys.path:
+                sys.path.append(reminders_script_dir)
+            from schedule_reminder import parse_callback_intent_and_time, schedule_reminder
+            parsed_cb = parse_callback_intent_and_time(note)
+            if parsed_cb:
+                schedule_reminder(
+                    time_str=parsed_cb["raw_time_str"],
+                    name=name,
+                    phone=phone,
+                    vehicle=vehicle or os.getenv("DEALERSHIP_RANGE", "Dealership Range"),
+                    notes=note,
+                    source="crm_note",
+                    source_ref=f"crm_action_{cid}_{int(datetime.now().timestamp())}"
+                )
+        except Exception:
+            pass
+
     # Optional manual score / reason override if provided
     if likelihood_score is not None:
         tier = "HIGH" if likelihood_score >= 75 else ("MEDIUM" if likelihood_score >= 45 else "LOW")
