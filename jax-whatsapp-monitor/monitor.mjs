@@ -12,24 +12,13 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const execAsync = promisify(exec);
 
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-function isPathSafe(targetPath) {
-  if (!targetPath) return false;
-  try {
-    const res = path.resolve(targetPath);
-    if (!res.startsWith(PROJECT_ROOT) && !res.startsWith('/tmp/') && !res.startsWith(os.tmpdir())) return false;
-    if (res.includes('.env') || res.includes('auth_info') || res.includes('.git') || res.includes('prospects.db') || res.includes('creds.json')) return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
+import { useSqliteAuthState } from './sqlite_auth_state.mjs';
+import { ensureSignalPatch } from '../jax-shared/ensure_signal_patch.mjs';
 import {
   saveMessage,
   getProspectHistory,
@@ -37,19 +26,47 @@ import {
   searchMessages,
   logAuditSend,
   upsertProspect,
-  tagContact
+  tagContact,
+  db
 } from './db.mjs';
+
+// Auto-patch libsignal.js on boot to maintain Signal session self-healing
+ensureSignalPatch(path.resolve('.'));
 
 import {
   isLeadNotification,
   autoAcceptLeads
 } from './lead_auto_accept.mjs';
 
+import {
+  saveBaileysMessage,
+  getBaileysMessage
+} from '../jax-shared/memory.mjs';
+
+import { fileURLToPath } from 'url';
+import os from 'os';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
+function isPathSafe(targetPath) {
+  if (!targetPath) return false;
+  try {
+    const res = path.resolve(targetPath);
+    if (!res.startsWith(PROJECT_ROOT) && !res.startsWith('/tmp/') && !res.startsWith(os.tmpdir()) && !res.startsWith('/home/')) return false;
+    if (res.includes('.env') || res.includes('auth_info') || res.includes('.git') || res.includes('prospects.db') || res.includes('creds.json')) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 dotenv.config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const AUTH_DIR = process.env.AUTH_DIR || path.resolve('./auth_info_monitor');
+const AUTH_DB_PATH = path.resolve(process.env.AUTH_DB_PATH || './data/auth_monitor.sqlite');
 const PORT = parseInt(process.env.API_PORT || '9095', 10);
 const PAIRING_NUMBER = (process.env.PAIRING_PHONE_NUMBER || '').replace(/[^0-9]/g, '');
 const MEDIA_INBOUND_DIR = process.env.MEDIA_INBOUND_DIR || path.resolve(__dirname, '../jax-shared/data/media/inbound');
@@ -60,6 +77,7 @@ if (!fs.existsSync(MEDIA_INBOUND_DIR)) {
 
 let sock = null;
 let connectionStatus = 'DISCONNECTED';
+let currentPairingCode = null;
 
 function unwrapMessage(rawMsg) {
   if (!rawMsg) return null;
@@ -301,7 +319,7 @@ async function processIncomingMessage(msg, isLive = true) {
 
   logger.debug(`Saved message [${msg.key.id}] from ${phoneNumber} (fromMe: ${fromMe}, isGroup: ${isGroup}, media: ${Boolean(mediaUrl)})`);
 
-  // Check if message is a CRM lead notification (from configured lead notifier or on dealership group)
+  // Check if message is a CRM lead notification (from Zelda or on dealership group)
   if (!fromMe && isLeadNotification({
     senderPhone: participantPhone || cleanRemote,
     pushName: msg.pushName,
@@ -319,6 +337,51 @@ async function processIncomingMessage(msg, isLive = true) {
       remoteJid
     }, sock);
   }
+
+  // Auto-detect callback / appointment requests from inbound customer messages
+  if (!fromMe && !isGroup && isLive && extracted.text) {
+    try {
+      const cleanTxt = extracted.text.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+      const reminderScript = path.resolve(__dirname, '../skills/scheduled-reminders/scripts/schedule_reminder.py');
+      const callbackCmd = `python3 "${reminderScript}" --schedule --notes "${cleanTxt}" --phone "${phoneNumber}" --name "${cleanName}" --source "whatsapp_inbound" --source-ref "wa_msg_${msg.key.id}"`;
+      const { stdout } = await execAsync(callbackCmd, { timeout: 15000 });
+      if (stdout && stdout.includes('Scheduled Reminder Successfully Created')) {
+        logger.info(`⏰ Automatically scheduled callback reminder from customer WhatsApp message [${msg.key.id}]`);
+        const matchTime = stdout.match(/Target SAST Time:\s*([^\n]+)/);
+        const timeStr = matchTime ? matchTime[1] : 'scheduled time';
+        const confirmMsg = `📅 *Callback Scheduled*\n\nCustomer *${msg.pushName || phoneNumber}* requested a callback for *${timeStr}*.\nI will remind you 5 minutes prior on WhatsApp.`;
+        const ownerPhone = (process.env.OWNER_PHONE_NUMBER || '').replace(/[^0-9]/g, '');
+        if (ownerPhone && sock && connectionStatus === 'CONNECTED') {
+          await sock.sendMessage(`${ownerPhone}@s.whatsapp.net`, { text: confirmMsg });
+        }
+      }
+    } catch (cbErr) {
+      // Non-critical, ignore if no callback detected
+    }
+  }
+}
+
+async function sendQrToTelegram(qrString) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const ownerId = process.env.OWNER_TELEGRAM_ID || process.env.OWNER_USER_ID;
+  if (!token || !ownerId) return;
+
+  const qrPngPath = '/tmp/monitor_qr.png';
+  try {
+    await execAsync(`qrencode -s 12 -m 2 -o "${qrPngPath}" "${qrString.replace(/"/g, '\\"')}"`);
+
+    const ownerPhone = process.env.OWNER_PHONE_NUMBER ? ` (${process.env.OWNER_PHONE_NUMBER})` : '';
+    const caption = `📱 WhatsApp Monitor Linking QR Code\n\n1. Open WhatsApp on your personal phone${ownerPhone}.\n2. Tap Settings (or ⋮) > Linked Devices > Link a Device.\n3. Scan this photo to connect instantly!`;
+
+    const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" ` +
+      `-F "chat_id=${ownerId}" ` +
+      `-F "photo=@${qrPngPath}" ` +
+      `-F "caption=${caption}"`;
+    await execAsync(cmd);
+    logger.info('📱 [MONITOR QR CODE SENT TO TELEGRAM]');
+  } catch (err) {
+    logger.error({ err }, 'Failed to send QR to Telegram');
+  }
 }
 
 async function startWhatsAppMonitor() {
@@ -326,9 +389,9 @@ async function startWhatsAppMonitor() {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  const { state, saveCreds } = await useSqliteAuthState(AUTH_DB_PATH, AUTH_DIR);
   const { version, isLatest } = await fetchLatestBaileysVersion();
-  logger.info(`Starting WhatsApp Monitor using WA v${version.join('.')}, isLatest: ${isLatest}`);
+  logger.info(`Starting WhatsApp Monitor using WA v${version.join('.')}, isLatest: ${isLatest} [SQLite Auth Enabled]`);
 
   sock = makeWASocket({
     version,
@@ -336,7 +399,13 @@ async function startWhatsAppMonitor() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
+    getMessage: async (key) => {
+      if (!key || !key.id) return undefined;
+      const msg = getBaileysMessage(key.id);
+      return msg || undefined;
+    },
     logger: pino({ level: 'silent' }),
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     printQRInTerminal: !PAIRING_NUMBER,
     markOnlineOnConnect: false,
     syncFullHistory: true
@@ -347,6 +416,7 @@ async function startWhatsAppMonitor() {
     setTimeout(async () => {
       try {
         const code = await sock.requestPairingCode(PAIRING_NUMBER);
+        currentPairingCode = code;
         logger.info(`🔑 WhatsApp Pairing Code: ${code}`);
         console.log(`\n========================================\n🔑 PAIRING CODE FOR MONITOR: ${code}\n========================================\n`);
       } catch (err) {
@@ -357,12 +427,13 @@ async function startWhatsAppMonitor() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr && !PAIRING_NUMBER) {
+    if (qr) {
       console.log('\nScan this QR code to connect the Monitoring WhatsApp:\n');
       qrcodeTerminal.generate(qr, { small: true });
+      await sendQrToTelegram(qr);
     }
 
     if (connection === 'close') {
@@ -377,11 +448,34 @@ async function startWhatsAppMonitor() {
       if (shouldReconnect) {
         setTimeout(startWhatsAppMonitor, 5000);
       } else {
-        logger.error('WhatsApp session logged out. Delete auth_info_monitor directory and restart to rescan QR.');
+        if (!sock?.authState?.creds?.registered) {
+          logger.info('Pairing code timed out before registration. Cleaning un-paired session and regenerating fresh code in 4s...');
+          try {
+            fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+          } catch (e) {}
+          setTimeout(startWhatsAppMonitor, 4000);
+        } else {
+          logger.error('WhatsApp session logged out. Delete auth_info_monitor directory and restart to rescan QR.');
+        }
       }
     } else if (connection === 'open') {
       connectionStatus = 'CONNECTED';
       logger.info('✅ WhatsApp Monitor Bridge connected successfully! Passively indexing messages.');
+
+      // Pre-warm and assert clean E2EE sessions with primary and companion devices
+      setTimeout(async () => {
+        try {
+          const myId = sock?.authState?.creds?.me?.id;
+          const myLid = sock?.authState?.creds?.me?.lid;
+          const jidsToAssert = [myId, myLid].filter(Boolean);
+          if (jidsToAssert.length && typeof sock?.assertSessions === 'function') {
+            await sock.assertSessions(jidsToAssert, false);
+            logger.info(`🔑 Pre-warmed E2EE sessions for primary devices: ${jidsToAssert.join(', ')}`);
+          }
+        } catch (sessErr) {
+          logger.warn(`Primary session pre-warm note: ${sessErr.message}`);
+        }
+      }, 2000);
     }
   });
 
@@ -412,6 +506,19 @@ async function startWhatsAppMonitor() {
       if (c.id && (c.name || c.notify)) {
         upsertProspect(c.id, null, c.name || c.notify);
       }
+      if (c.id && c.lid) {
+        try {
+          const cleanPhone = c.id.replace(/[^0-9]/g, '');
+          const cleanLid = c.lid.endsWith('@lid') ? c.lid : `${c.lid}@lid`;
+          if (cleanPhone && cleanLid) {
+            db.prepare(`
+              INSERT INTO phone_lid_mapping (phone, lid, name, updated_at)
+              VALUES (?, ?, ?, datetime('now'))
+              ON CONFLICT(phone) DO UPDATE SET lid = excluded.lid, name = COALESCE(excluded.name, phone_lid_mapping.name), updated_at = excluded.updated_at
+            `).run(cleanPhone, cleanLid, c.name || c.notify || null);
+          }
+        } catch (e) {}
+      }
     }
   });
 
@@ -419,6 +526,9 @@ async function startWhatsAppMonitor() {
   sock.ev.on('messages.upsert', async ({ messages: msgs, type }) => {
     try {
       for (const msg of msgs) {
+        if (msg?.key?.id && msg?.message) {
+          saveBaileysMessage(msg.key.id, msg.message);
+        }
         await processIncomingMessage(msg, true);
       }
     } catch (err) {
@@ -439,6 +549,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     connection: connectionStatus,
     pairingConfigured: Boolean(PAIRING_NUMBER),
+    pairingCode: currentPairingCode,
     uptime: process.uptime()
   });
 });
@@ -476,7 +587,7 @@ app.get('/history/:phone', (req, res) => {
     const history = getProspectHistory(phone, limit, offset);
     res.json({ success: true, ...history });
   } catch (err) {
-    res.status(err.status || 500).json({ success: false, error: err.message, code: err.code });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -573,7 +684,7 @@ app.get('/context/:query', (req, res) => {
     ];
 
     const AFRIKAANS_NAMES = new Set([
-      'armand', 'corne', 'corné', 'jaco', 'willem', 'dirk', 'kobus', 'pieter', 'johan', 
+      'armand', 'corne', 'corné', 'jaco', 'hannes', 'dirk', 'kobus', 'pieter', 'johan', 
       'johannes', 'willem', 'frikkie', 'frik', 'riaan', 'christo', 'schalk', 'carel',
       'bennie', 'francois', 'gert', 'henk', 'koos', 'louw', 'ockert', 'roelof', 'tiaan',
       'wouter', 'andre', 'andré', 'werner', 'joggie', 'stephan', 'marthinus', 'tinus',
@@ -624,7 +735,7 @@ app.get('/context/:query', (req, res) => {
       'goeie môre', 'goeie naand', 'as dit', 'as jy', 'wanneer sal', 'vinnige geselsie',
       'vinnige luitjie', 'ek volg op', 'ek wil hoor', 'stuur vir', 'kontak my', 'bel my',
       'skakel my', 'praat met', 'gee my', 'oor whatsapp', 'hoe lyk', 'wat is', 'wat kos',
-      'hoeveel kos', 'hoe lyk jou'
+      'hoeveel kos', 'hoe lyk jou', 'jakes hier van', 'jakes hier weer'
     ];
 
     const ENGLISH_EXCLUSIVE_WORDS = new Set([
@@ -645,14 +756,8 @@ app.get('/context/:query', (req, res) => {
       'how is', 'hope you', 'how your', 'your schedule', 'good time', 'quick check',
       'happy to assist', 'give you a call', 'give me a call', 'right here', 'after hours',
       'trade in', 'test drive', 'vehicle search', 'hear from you', 'looking for',
-      'in english', 'please send', 'send me'
+      'jakes here from', 'jakes here again', 'in english', 'please send', 'send me'
     ];
-
-    const salesName = (process.env.SALESPERSON_NAME || '').toLowerCase().trim();
-    if (salesName) {
-      AFRIKAANS_PHRASES.push(`${salesName} hier van`, `${salesName} hier weer`);
-      ENGLISH_PHRASES.push(`${salesName} here from`, `${salesName} here again`);
-    }
 
     function scoreText(text) {
       if (!text || text.startsWith('[') && text.endsWith(']')) return { afr: 0, eng: 0 };
@@ -779,7 +884,7 @@ app.get('/context/:query', (req, res) => {
       }
     });
   } catch (err) {
-    res.status(err.status || 500).json({ success: false, error: err.message, code: err.code });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -840,13 +945,44 @@ function sanitizeDashes(str) {
   return String(str).replace(/[\u2014\u2013\u2015]/g, '-');
 }
 
-// EXPLICIT-ONLY SEND ENDPOINT
-app.post('/send', async (req, res) => {
-  try {
-    const { phone, message, imagePath, documentPath, authorizedBy } = req.body;
+// Helper to synthesize voice note to OGG Opus via shared audio_processor
+async function synthesizeVoiceNote(text, targetId = 'jakes', voice = 'auto') {
+  const tempOgg = `/tmp/jakes_vn_${Date.now()}_${targetId}.ogg`;
+  const tempTextFile = `/tmp/jakes_txt_${Date.now()}_${targetId}.txt`;
 
-    if (!phone || (!message && !imagePath)) {
-      return res.status(400).json({ success: false, error: 'Missing phone, message body, or imagePath' });
+  try {
+    const audioScript = path.resolve(__dirname, '../jax-shared/audio_processor.py');
+    await execAsync(`python3 "${audioScript}" synth-file "${tempTextFile}" "${tempOgg}" "${voice}"`, {
+      env: process.env,
+      timeout: 130000
+    });
+    if (fs.existsSync(tempOgg) && fs.statSync(tempOgg).size > 0) {
+      return tempOgg;
+    }
+    return null;
+  } catch (err) {
+    logger.error({ err }, 'Voice synthesis error in monitor bridge');
+    return null;
+  } finally {
+    if (fs.existsSync(tempTextFile)) {
+      try { fs.unlinkSync(tempTextFile); } catch (e) {}
+    }
+  }
+}
+
+// EXPLICIT-ONLY SEND & TTS ENDPOINTS
+app.post(['/send', '/tts', '/send-voice'], async (req, res) => {
+  let tempGeneratedAudio = null;
+  try {
+    let { phone, message, text, imagePath, documentPath, audioPath, authorizedBy, sendAsVoice, voiceNoteText, ttsText, voice } = req.body;
+
+    if (req.path === '/tts' || req.path === '/send-voice') {
+      sendAsVoice = true;
+      message = text || message || voiceNoteText || ttsText;
+    }
+
+    if (!phone || (!message && !imagePath && !audioPath && !documentPath && !sendAsVoice && !voiceNoteText && !ttsText)) {
+      return res.status(400).json({ success: false, error: 'Missing phone, message body, imagePath, audioPath, or documentPath' });
     }
 
     if (!authorizedBy) {
@@ -860,58 +996,106 @@ app.post('/send', async (req, res) => {
       return res.status(503).json({ success: false, error: 'WhatsApp monitor bridge is not currently connected' });
     }
 
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+    let isLid = String(phone).includes('@lid') || (String(phone).replace(/[^0-9]/g, '').length >= 14 && !String(phone).startsWith('27'));
+    let cleanPhone = String(phone).replace(/[^0-9]/g, '');
+    if (!isLid && cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+      cleanPhone = '27' + cleanPhone.slice(1);
+    }
+
+    // Direct LID Resolution from prospects.db mapping
+    if (!isLid) {
+      try {
+        const row = db.prepare('SELECT lid FROM phone_lid_mapping WHERE phone = ?').get(cleanPhone);
+        if (row && row.lid) {
+          const mappedLid = row.lid.endsWith('@lid') ? row.lid : `${row.lid}@lid`;
+          logger.info(`[LID DIRECT ROUTING] Auto-resolved recipient phone ${cleanPhone} -> LID ${mappedLid}`);
+          cleanPhone = mappedLid.split('@')[0];
+          isLid = true;
+        }
+      } catch (lidErr) {
+        logger.warn(`[LID DIRECT ROUTING] Lookup warning: ${lidErr.message}`);
+      }
+    }
+
+    let targetJid = isLid ? `${cleanPhone}@lid` : `${cleanPhone}@s.whatsapp.net`;
     const cleanMsg = sanitizeDashes(message);
 
-    logger.info(`Sending explicit outbound message to ${cleanPhone}, authorized by: ${authorizedBy}`);
-
-    // Verify recipient is actually registered on WhatsApp before dispatching
-    let targetJid = jid;
-    try {
-      const waResults = await sock.onWhatsApp(cleanPhone);
-      if (!waResults || waResults.length === 0 || !waResults[0]?.exists) {
-        logger.warn(`Outbound message aborted: ${cleanPhone} is not registered on WhatsApp`);
-        logAuditSend({
-          prospectPhone: cleanPhone,
-          content: cleanMsg || '[Image Attachment]',
-          authorizedBy,
-          status: 'FAILED',
-          errorMessage: 'Recipient phone number is not registered on WhatsApp'
-        });
-        return res.status(400).json({
-          success: false,
-          notOnWhatsApp: true,
-          error: `Phone number ${cleanPhone} is not registered on WhatsApp`
-        });
-      }
-      if (waResults[0]?.jid) {
-        targetJid = waResults[0].jid;
-      }
-    } catch (checkErr) {
-      logger.warn({ err: checkErr }, `onWhatsApp check failed for ${cleanPhone}, proceeding with caution`);
-    }
     if (documentPath && (!isPathSafe(documentPath) || !fs.existsSync(documentPath))) {
       return res.status(403).json({ success: false, error: 'Invalid or missing document path' });
     }
     if (imagePath && (!isPathSafe(imagePath) || !fs.existsSync(imagePath))) {
       return res.status(403).json({ success: false, error: 'Invalid or missing image path' });
     }
+    if (audioPath && (!isPathSafe(audioPath) || !fs.existsSync(audioPath))) {
+      return res.status(403).json({ success: false, error: 'Invalid or missing audio path' });
+    }
+
+    logger.info(`Sending explicit outbound message to ${targetJid}, authorized by: ${authorizedBy}`);
+
+    if (!isLid) {
+      try {
+        const waResults = await sock.onWhatsApp(cleanPhone);
+        if (!waResults || waResults.length === 0 || !waResults[0]?.exists) {
+          logger.warn(`Outbound message aborted: ${cleanPhone} is not registered on WhatsApp`);
+          logAuditSend({
+            prospectPhone: cleanPhone,
+            content: cleanMsg || '[Image Attachment]',
+            authorizedBy,
+            status: 'FAILED',
+            errorMessage: 'Recipient phone number is not registered on WhatsApp'
+          });
+          return res.status(400).json({
+            success: false,
+            notOnWhatsApp: true,
+            error: `Phone number ${cleanPhone} is not registered on WhatsApp`
+          });
+        }
+        if (waResults[0]?.jid) {
+          targetJid = waResults[0].jid;
+        }
+      } catch (checkErr) {
+        logger.warn({ err: checkErr }, `onWhatsApp check failed for ${cleanPhone}, proceeding with caution`);
+      }
+    }
+
+    // Voice Note Synthesis if requested
+    if (!audioPath && (sendAsVoice || voiceNoteText || ttsText)) {
+      const textToSpeak = voiceNoteText || ttsText || cleanMsg;
+      if (textToSpeak) {
+        tempGeneratedAudio = await synthesizeVoiceNote(textToSpeak, cleanPhone, voice || 'auto');
+        if (tempGeneratedAudio && fs.existsSync(tempGeneratedAudio)) {
+          audioPath = tempGeneratedAudio;
+        }
+      }
+    }
 
     let result;
-    if (documentPath) {
-      const buffer = fs.readFileSync(documentPath);
-      result = await sock.sendMessage(targetJid, { document: buffer, mimetype: "application/pdf", fileName: documentPath.split("/").pop(), caption: cleanMsg || "" });
-    } else if (imagePath) {
-      const buffer = fs.readFileSync(imagePath);
-      result = await sock.sendMessage(targetJid, { image: buffer, caption: cleanMsg || '' });
-    } else {
-      result = await sock.sendMessage(targetJid, { text: cleanMsg });
+    try {
+      if (audioPath && fs.existsSync(audioPath)) {
+        const buffer = fs.readFileSync(audioPath);
+        result = await sock.sendMessage(targetJid, { audio: buffer, mimetype: 'audio/ogg; codecs=opus', ptt: true });
+      } else if (documentPath && fs.existsSync(documentPath)) {
+        const buffer = fs.readFileSync(documentPath);
+        result = await sock.sendMessage(targetJid, { document: buffer, mimetype: "application/pdf", fileName: documentPath.split("/").pop(), caption: cleanMsg || "" });
+      } else if (imagePath && fs.existsSync(imagePath)) {
+        const buffer = fs.readFileSync(imagePath);
+        result = await sock.sendMessage(targetJid, { image: buffer, caption: cleanMsg || '' });
+      } else {
+        result = await sock.sendMessage(targetJid, { text: cleanMsg });
+      }
+    } finally {
+      if (tempGeneratedAudio && fs.existsSync(tempGeneratedAudio)) {
+        try { fs.unlinkSync(tempGeneratedAudio); } catch (e) {}
+      }
+    }
+
+    if (result && result.key && result.key.id && result.message) {
+      saveBaileysMessage(result.key.id, result.message);
     }
 
     logAuditSend({
       prospectPhone: cleanPhone,
-      content: cleanMsg || '[Image Attachment]',
+      content: cleanMsg || (audioPath ? '[Voice Note]' : (imagePath ? '[Image Attachment]' : '[Document Attachment]')),
       authorizedBy,
       status: 'SENT',
       msgId: result?.key?.id
@@ -922,9 +1106,9 @@ app.post('/send', async (req, res) => {
       jid: targetJid,
       phoneNumber: cleanPhone,
       fromMe: true,
-      senderName: (process.env.SALESPERSON_NAME ? `${process.env.SALESPERSON_NAME} / ${process.env.DEALERSHIP_NAME || 'Dealership'}` : '{SALESPERSON_NAME} / {DEALERSHIP_NAME}'),
-      messageType: documentPath ? 'document' : (imagePath ? 'image' : 'text'),
-      content: cleanMsg || (documentPath ? '[Document Attachment]' : (imagePath ? '[Image Attachment]' : '')),
+      senderName: 'Jakes / Nissan Gezina',
+      messageType: audioPath ? 'audio' : (documentPath ? 'document' : (imagePath ? 'image' : 'text')),
+      content: cleanMsg || (audioPath ? '[Voice Note]' : (documentPath ? '[Document Attachment]' : (imagePath ? '[Image Attachment]' : ''))),
       mediaUrl: documentPath || imagePath || null,
       timestamp: Math.floor(Date.now() / 1000)
     });
@@ -951,6 +1135,49 @@ app.post('/send', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// ==========================================
+// REMINDERS API & PERSISTENT BACKGROUND POLLER
+// ==========================================
+const reminderScriptPath = path.resolve(__dirname, '../skills/scheduled-reminders/scripts/schedule_reminder.py');
+
+app.get('/reminders/pending', async (req, res) => {
+  try {
+    const cmd = `python3 "${reminderScriptPath}" --list`;
+    const { stdout } = await execAsync(cmd, { timeout: 10000 });
+    res.json({ success: true, output: stdout.trim() });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/reminders/check', async (req, res) => {
+  try {
+    const cmd = `python3 "${reminderScriptPath}" --check-due`;
+    const { stdout } = await execAsync(cmd, { timeout: 15000 });
+    res.json({ success: true, output: stdout.trim() });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// CONTINUOUS BACKGROUND REMINDER POLLER (Every 15s)
+let reminderPollerActive = false;
+setInterval(async () => {
+  if (reminderPollerActive) return;
+  reminderPollerActive = true;
+  try {
+    const cmd = `python3 "${reminderScriptPath}" --check-due`;
+    const { stdout } = await execAsync(cmd, { timeout: 15000 });
+    if (stdout && stdout.includes('SENT')) {
+      logger.info(`📲 [REMINDER POLLER] Dispatched due reminder: ${stdout.trim()}`);
+    }
+  } catch (err) {
+    // Non-critical background poller error
+  } finally {
+    reminderPollerActive = false;
+  }
+}, 15000);
 
 app.listen(PORT, '127.0.0.1', () => {
   logger.info(`🚀 WhatsApp Monitor REST API listening on http://127.0.0.1:${PORT}`);

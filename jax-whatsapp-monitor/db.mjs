@@ -58,6 +58,14 @@ db.exec(`
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS phone_lid_mapping (
+    phone TEXT PRIMARY KEY,
+    lid TEXT NOT NULL,
+    name TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_phone_lid ON phone_lid_mapping(lid);
 `);
 
 // Migration for existing table columns

@@ -52,6 +52,7 @@ const apps = [
     env: {
       ...envConfig,
       NODE_ENV: "production",
+      API_PORT: process.env.BOT_API_PORT || envConfig.BOT_API_PORT || "9096",
       SQLITE_DB_PATH: path.resolve(ROOT_DIR, process.env.SQLITE_DB_PATH || envConfig.SQLITE_DB_PATH || "jax-shared/data/prospects.db")
     },
     error_file: path.join(LOGS_DIR, "pm2-whatsapp-error.log"),
@@ -62,7 +63,7 @@ const apps = [
   }
 ];
 
-if (process.env.TELEGRAM_BOT_TOKEN) {
+if (process.env.TELEGRAM_BOT_TOKEN || envConfig.TELEGRAM_BOT_TOKEN) {
   apps.push({
     name: "jax-telegram",
     script: "bot.mjs",
@@ -76,6 +77,7 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
       max_memory_restart: "220M",
       kill_timeout: 30000,
       env: {
+        ...envConfig,
         NODE_ENV: "production",
         HEALTH_PORT: "9090"
       },
