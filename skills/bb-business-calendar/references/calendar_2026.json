@@ -1,0 +1,104 @@
+{
+  "sales_months_2026": [
+    {
+      "month_name": "January 2026",
+      "month_end": "2026-01-23 12:00:00",
+      "period_starts_after": null,
+      "note": "Period starts after Dec 2025 month-end (not on file)"
+    },
+    {
+      "month_name": "February 2026",
+      "month_end": "2026-02-23 12:00:00",
+      "period_starts_after": "2026-01-23 12:00:00",
+      "note": "Fri 23 Jan 2026"
+    },
+    {
+      "month_name": "March 2026",
+      "month_end": "2026-03-23 12:00:00",
+      "period_starts_after": "2026-02-23 12:00:00",
+      "note": "Mon 23 Feb 2026"
+    },
+    {
+      "month_name": "April 2026",
+      "month_end": "2026-04-23 12:00:00",
+      "period_starts_after": "2026-03-23 12:00:00",
+      "note": "Mon 23 Mar 2026"
+    },
+    {
+      "month_name": "May 2026",
+      "month_end": "2026-05-26 12:00:00",
+      "period_starts_after": "2026-04-23 12:00:00",
+      "note": "Thu 23 Apr 2026"
+    },
+    {
+      "month_name": "June 2026",
+      "month_end": "2026-06-25 12:00:00",
+      "period_starts_after": "2026-05-26 12:00:00",
+      "note": "Tue 26 May 2026"
+    },
+    {
+      "month_name": "July 2026",
+      "month_end": "2026-07-24 12:00:00",
+      "period_starts_after": "2026-06-25 12:00:00",
+      "note": "Thu 25 Jun 2026"
+    },
+    {
+      "month_name": "August 2026",
+      "month_end": "2026-08-25 12:00:00",
+      "period_starts_after": "2026-07-24 12:00:00",
+      "note": "Fri 24 Jul 2026"
+    },
+    {
+      "month_name": "September 2026",
+      "month_end": "2026-09-23 12:00:00",
+      "period_starts_after": "2026-08-25 12:00:00",
+      "note": "Tue 25 Aug 2026"
+    },
+    {
+      "month_name": "October 2026",
+      "month_end": "2026-10-23 12:00:00",
+      "period_starts_after": "2026-09-23 12:00:00",
+      "note": "Wed 23 Sep 2026"
+    },
+    {
+      "month_name": "November 2026",
+      "month_end": "2026-11-23 12:00:00",
+      "period_starts_after": "2026-10-23 12:00:00",
+      "note": "Fri 23 Oct 2026"
+    },
+    {
+      "month_name": "December 2026",
+      "month_end": "2026-12-22 12:00:00",
+      "period_starts_after": "2026-11-23 12:00:00",
+      "note": "Mon 23 Nov 2026"
+    }
+  ],
+  "public_holidays_2026": [
+    "2026-01-01",
+    "2026-03-21",
+    "2026-04-03",
+    "2026-04-05",
+    "2026-04-06",
+    "2026-04-27",
+    "2026-05-01",
+    "2026-06-16",
+    "2026-08-09",
+    "2026-08-10",
+    "2026-09-24",
+    "2026-12-16",
+    "2026-12-25",
+    "2026-12-26"
+  ],
+  "trading_hours": {
+    "monday_to_friday": {
+      "start": "07:30",
+      "end": "17:30"
+    },
+    "saturday": {
+      "start": "08:00",
+      "end": "13:00"
+    },
+    "sunday": null,
+    "month_end_closing_window_end": "12:00"
+  }
+}
